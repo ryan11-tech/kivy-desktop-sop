@@ -1,0 +1,249 @@
+{
+  "categories": [
+    {
+      "id": "black_tea_base",
+      "name": "BLACK TEA BASE (SOP)",
+      "icon": "",
+      "recipes": [
+        {
+          "id": "base_001",
+          "name": "Black Tea Concentrate",
+          "description": "Standard base tea for all milk tea recipes",
+          "parameters": [
+            {
+              "name": "Water Volume",
+              "amount": 1200.0,
+              "unit": "ml"
+            },
+            {
+              "name": "Salt",
+              "amount": 1.0,
+              "unit": "g"
+            },
+            {
+              "name": "Tea Powder",
+              "amount": 100.0,
+              "unit": "g"
+            },
+            {
+              "name": "Temperature",
+              "amount": 100.0,
+              "unit": "°C"
+            },
+            {
+              "name": "Steeping Time",
+              "amount": 9.0,
+              "unit": "minutes"
+            },
+            {
+              "name": "Net Yield",
+              "amount": 900.0,
+              "unit": "g"
+            }
+          ],
+          "steps": [
+            "Measure 1200 ml of water using a graduate beaker.",
+            "Add 1 g of salt into the water.",
+            "Bring the water to a rolling boil until it reaches 100°C.",
+            "Add the pre-measured 100 g of tea powder into the boiling water.",
+            "Stir continuously throughout the entire 8-minute period to extract maximum flavor.",
+            "Filter the tea mixture using a clean tea sock into a pot."
+          ],
+          "favorite": false,
+          "notes": "",
+          "image": "C:/Users/Mgking/Pictures/Mae Charm Trip/P1020922.JPG"
+        }
+      ]
+    },
+    {
+      "id": "myanmar_milk_tea",
+      "name": "MYANMAR MILK TEA",
+      "icon": "",
+      "recipes": [
+        {
+          "id": "pone_mhan",
+          "name": "Pone Mhan",
+          "variants": [
+            {
+              "type": "Hot",
+              "ingredients": [
+                {
+                  "name": "Black Tea",
+                  "amount": 90.0,
+                  "unit": "ml"
+                },
+                {
+                  "name": "Evaporated Milk",
+                  "amount": 90.0,
+                  "unit": "ml"
+                },
+                {
+                  "name": "Condensed Milk",
+                  "amount": 20.0,
+                  "unit": "g"
+                }
+              ]
+            },
+            {
+              "type": "Iced",
+              "ingredients": [
+                {
+                  "name": "Black Tea",
+                  "amount": 100.0,
+                  "unit": "ml"
+                },
+                {
+                  "name": "Evaporated Milk",
+                  "amount": 100.0,
+                  "unit": "ml"
+                },
+                {
+                  "name": "Condensed Milk",
+                  "amount": 30.0,
+                  "unit": "g"
+                }
+              ]
+            }
+          ],
+          "favorite": false,
+          "image": "C:/Users/Mgking/Pictures/Zin Mae Teahouse/Zinme Starting/P1021748.JPG"
+        },
+        {
+          "id": "cho_saint",
+          "name": "Cho Saint",
+          "variants": [
+            {
+              "type": "Hot",
+              "ingredients": [
+                {
+                  "name": "Black Tea",
+                  "amount": 90.0,
+                  "unit": "ml"
+                },
+                {
+                  "name": "Evaporated Milk",
+                  "amount": 90.0,
+                  "unit": "ml"
+                },
+                {
+                  "name": "Condensed Milk",
+                  "amount": 30.0,
+                  "unit": "g"
+                }
+              ]
+            },
+            {
+              "type": "Iced",
+              "ingredients": [
+                {
+                  "name": "Black Tea",
+                  "amount": 100.0,
+                  "unit": "ml"
+                },
+                {
+                  "name": "Evaporated Milk",
+                  "amount": 100.0,
+                  "unit": "ml"
+                },
+                {
+                  "name": "Condensed Milk",
+                  "amount": 40.0,
+                  "unit": "g"
+                }
+              ]
+            }
+          ],
+          "favorite": false,
+          "image": "C:\\Users\\Mgking\\Pictures\\S__18587679.jpg"
+        },
+        {
+          "id": "pot_siant",
+          "name": "Pot Siant",
+          "image": "C:/Users/Mgking/Pictures/Mae Charm Trip/P1020926.JPG",
+          "variants": [
+            {
+              "type": "Hot",
+              "ingredients": []
+            },
+            {
+              "type": "Iced",
+              "ingredients": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "masala_chai",
+      "name": "Masala Chai",
+      "icon": "",
+      "recipes": [
+        {
+          "id": "masala_chai",
+          "name": "Masala Chai",
+          "variants": [
+            {
+              "type": "Hot",
+              "ingredients": [
+                {
+                  "name": "Black Tea Powder",
+                  "amount": 1.0,
+                  "unit": "spoon"
+                },
+                {
+                  "name": "Cow Milk",
+                  "amount": 100.0,
+                  "unit": "ml"
+                },
+                {
+                  "name": "Brown Sugar",
+                  "amount": 20.0,
+                  "unit": "g"
+                }
+              ]
+            },
+            {
+              "type": "Iced",
+              "ingredients": []
+            }
+          ],
+          "image": "C:/Users/Mgking/Pictures/Zin Mae Teahouse/Zinme Starting/P1022098.JPG"
+        }
+      ]
+    },
+    {
+      "id": "cold_brew_tea",
+      "name": "Honey Lemon Cold Brew Tea",
+      "icon": "",
+      "recipes": [
+        {
+          "id": "cold_brew_tea",
+          "name": "Cold Brew Tea",
+          "variants": [
+            {
+              "type": "Hot",
+              "ingredients": []
+            },
+            {
+              "type": "Iced",
+              "ingredients": [
+                {
+                  "name": "Cold Brew",
+                  "amount": 200.0,
+                  "unit": "ml"
+                },
+                {
+                  "name": "Honey Lemon",
+                  "amount": 40.0,
+                  "unit": "ml"
+                }
+              ]
+            }
+          ],
+          "image": "C:\\Users\\Mgking\\Desktop\\Tea Bar\\2023-02-24.jpg",
+          "favorite": false
+        }
+      ]
+    }
+  ]
+}
