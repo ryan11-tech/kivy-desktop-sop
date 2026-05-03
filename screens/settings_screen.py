@@ -1,3 +1,5 @@
+import os
+
 from kivy.uix.screenmanager import Screen
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.scrollview import ScrollView
@@ -7,11 +9,15 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.spinner import Spinner
 from kivy.uix.popup import Popup
 from kivy.graphics import Color, Rectangle
+
 from theme import TH, load_theme, save_theme, PRESETS, BG_PRESETS, LIGHT_BG_PRESETS
 from lang import L, load_lang, save_lang, reload_lang
-from utils import (set_bg, gold_line, divider, make_label,
-                   gold_btn, ghost_btn, _hex_color,
+from utils import (set_bg, fill_rounded, divider, make_label, spacer,
+                   gold_btn, ghost_btn, icon_btn, chip, _hex_color,
                    load_pin, save_pin)
+
+CUR_DIR = os.path.dirname(os.path.abspath(__file__))
+FA_FONT = os.path.join(os.path.dirname(CUR_DIR), "assets", "fa-solid-900.ttf")
 
 
 class SettingsScreen(Screen):
@@ -20,239 +26,165 @@ class SettingsScreen(Screen):
 
     def build_ui(self):
         self.clear_widgets()
-        t        = load_theme()
+        t = load_theme()
         pin_data = load_pin()
-        pin_on   = pin_data.get("enabled", True)
+        pin_on = pin_data.get("enabled", True)
 
         root = BoxLayout(orientation="vertical")
         set_bg(root, TH.bg)
-        root.add_widget(gold_line(2))
 
-        # ── Header ──────────────────────────────────────────────────────────
-        header = BoxLayout(size_hint_y=None, height=60, padding=[12, 8])
-        set_bg(header, TH.header_bg)
-        back = ghost_btn(L["btn_back"], height=44)
-        back.size_hint_x = None
-        back.width = 90
-        back.bind(on_press=lambda x: setattr(self.manager, "current", "home"))
-        header.add_widget(back)
-        header.add_widget(make_label(
-            L["settings"], font_size=16,
-            color=TH.primary, bold=True,
-            halign="center", height=44))
-        header.add_widget(BoxLayout(size_hint_x=None, width=90))
-        root.add_widget(header)
-        root.add_widget(gold_line(1))
+        # ── Top bar ─────────────────────────────────────────────────────
+        top = BoxLayout(size_hint_y=None, height=64, padding=[14, 10], spacing=10)
+        set_bg(top, TH.bg)
+        back = icon_btn("<",
+                        on_press=lambda *_: setattr(self.manager, "current", "home"),
+                        size=(44, 40),
+                        fg=TH.text_main, bg=TH.card,
+                        font_size=22, radius=12)
+        top.add_widget(back)
+        top.add_widget(Label(
+            text=L["settings"], font_size=18, bold=True,
+            color=TH.text_main, halign="left", valign="middle",
+            text_size=(220, None)))
+        top.add_widget(BoxLayout(size_hint=(None, None), size=(40, 40)))
+        root.add_widget(top)
+        root.add_widget(divider())
 
-        scroll = ScrollView()
-        layout = BoxLayout(orientation="vertical", spacing=16,
-                           padding=[16, 16], size_hint_y=None)
+        scroll = ScrollView(bar_width=2)
+        layout = BoxLayout(orientation="vertical", spacing=14,
+                           padding=[14, 14, 14, 24], size_hint_y=None)
         layout.bind(minimum_height=layout.setter("height"))
-        
-        # ── Primary Color ─────────────────────────────────────────────────────
-        layout.add_widget(make_label(
-            L["primary_color"], font_size=TH.fs_small,
-            color=TH.grey, bold=True, height=24))
-        pri_row = BoxLayout(size_hint_y=None, height=52, spacing=8)
-        self.pri_input = TextInput(
-            text=t["primary"], multiline=False,
-            size_hint_y=None, height=52,
-            font_size=TH.fs_normal,
-            background_color=TH.input_bg,
-            foreground_color=TH.text_main,
-            cursor_color=TH.primary)
+
+        # ── Theme section ───────────────────────────────────────────────
+        layout.add_widget(self._section("THEME"))
+        theme_card = self._card()
+
+        # Primary color
+        theme_card.add_widget(self._field_label(L["primary_color"]))
+        pri_row = BoxLayout(size_hint_y=None, height=46, spacing=8)
+        self.pri_input = self._input(t["primary"])
         self.pri_preview = BoxLayout(
-            size_hint_x=None, width=52,
-            size_hint_y=None, height=52)
-        set_bg(self.pri_preview, _hex_color(t["primary"]))
+            size_hint=(None, None), size=(46, 46))
+        fill_rounded(self.pri_preview, _hex_color(t["primary"]), radius=10)
         self.pri_input.bind(
             text=lambda i, v: self._upd_preview(self.pri_preview, v))
         pri_row.add_widget(self.pri_input)
         pri_row.add_widget(self.pri_preview)
-        layout.add_widget(pri_row)
+        theme_card.add_widget(pri_row)
 
-        layout.add_widget(make_label(
-            L["quick_select"], font_size=TH.fs_small,
-            color=TH.grey, height=22))
-        keys = list(PRESETS.keys())
-        for i in range(0, len(keys), 5):
-            row_keys = keys[i:i+5]
-            prow = BoxLayout(size_hint_y=None, height=44, spacing=4)
-            for k in row_keys:
-                hx = PRESETS[k]
-                pb = Button(
-                    text=k, font_size=10, bold=True,
-                    size_hint_y=None, height=44,
-                    background_normal="",
-                    background_color=_hex_color(hx),
-                    color=(1, 1, 1, 1))
-                pb.hx = hx
-                pb.bind(on_press=lambda b, *a: (
-                    setattr(self.pri_input, "text", b.hx),
-                    self._upd_preview(self.pri_preview, b.hx)))
-                prow.add_widget(pb)
-            layout.add_widget(prow)
-        layout.add_widget(divider())
+        theme_card.add_widget(self._mini_label(L["quick_select"]))
+        theme_card.add_widget(self._swatches(
+            list(PRESETS.items()),
+            on_pick=lambda hx: (
+                setattr(self.pri_input, "text", hx),
+                self._upd_preview(self.pri_preview, hx))))
 
-        # ── Background Color ──────────────────────────────────────────────────
-        layout.add_widget(make_label(
-            L["bg_color"], font_size=TH.fs_small,
-            color=TH.grey, bold=True, height=24))
-        bg_row = BoxLayout(size_hint_y=None, height=52, spacing=8)
-        self.bg_input = TextInput(
-            text=t["bg"], multiline=False,
-            size_hint_y=None, height=52,
-            font_size=TH.fs_normal,
-            background_color=TH.input_bg,
-            foreground_color=TH.text_main,
-            cursor_color=TH.primary)
+        theme_card.add_widget(spacer(8))
+
+        # Background color
+        theme_card.add_widget(self._field_label(L["bg_color"]))
+        bg_row = BoxLayout(size_hint_y=None, height=46, spacing=8)
+        self.bg_input = self._input(t["bg"])
         self.bg_preview = BoxLayout(
-            size_hint_x=None, width=52,
-            size_hint_y=None, height=52)
-        set_bg(self.bg_preview, _hex_color(t["bg"]))
+            size_hint=(None, None), size=(46, 46))
+        fill_rounded(self.bg_preview, _hex_color(t["bg"]), radius=10)
         self.bg_input.bind(
             text=lambda i, v: self._upd_preview(self.bg_preview, v))
         bg_row.add_widget(self.bg_input)
         bg_row.add_widget(self.bg_preview)
-        layout.add_widget(bg_row)
+        theme_card.add_widget(bg_row)
 
-        layout.add_widget(make_label(
-            L["dark_bg"], font_size=TH.fs_small,
-            color=TH.grey, height=22))
-        bg_keys = list(BG_PRESETS.keys())
-        for i in range(0, len(bg_keys), 4):
-            row_keys = bg_keys[i:i+4]
-            brow = BoxLayout(size_hint_y=None, height=44, spacing=4)
-            for k in row_keys:
-                hx = BG_PRESETS[k]
-                pb = Button(
-                    text=k, font_size=10, bold=True,
-                    size_hint_y=None, height=44,
-                    background_normal="",
-                    background_color=_hex_color(hx),
-                    color=(1, 1, 1, 1))
-                pb.hx = hx
-                pb.bind(on_press=lambda b, *a: (
-                    setattr(self.bg_input, "text", b.hx),
-                    self._upd_preview(self.bg_preview, b.hx)))
-                brow.add_widget(pb)
-            layout.add_widget(brow)
+        theme_card.add_widget(self._mini_label(L["dark_bg"]))
+        theme_card.add_widget(self._swatches(
+            list(BG_PRESETS.items()),
+            on_pick=lambda hx: (
+                setattr(self.bg_input, "text", hx),
+                self._upd_preview(self.bg_preview, hx))))
 
-        layout.add_widget(make_label(
-            L["light_bg"], font_size=TH.fs_small,
-            color=TH.grey, height=22))
-        lbg_keys = list(LIGHT_BG_PRESETS.keys())
-        for i in range(0, len(lbg_keys), 4):
-            row_keys = lbg_keys[i:i+4]
-            lrow = BoxLayout(size_hint_y=None, height=44, spacing=4)
-            for k in row_keys:
-                hx = LIGHT_BG_PRESETS[k]
-                pb = Button(
-                    text=k, font_size=10, bold=True,
-                    size_hint_y=None, height=44,
-                    background_normal="",
-                    background_color=_hex_color(hx),
-                    color=(0.1, 0.1, 0.1, 1))
-                pb.hx = hx
-                pb.bind(on_press=lambda b, *a: (
-                    setattr(self.bg_input, "text", b.hx),
-                    self._upd_preview(self.bg_preview, b.hx)))
-                lrow.add_widget(pb)
-            layout.add_widget(lrow)
-        layout.add_widget(divider())
+        theme_card.add_widget(self._mini_label(L["light_bg"]))
+        theme_card.add_widget(self._swatches(
+            list(LIGHT_BG_PRESETS.items()),
+            on_pick=lambda hx: (
+                setattr(self.bg_input, "text", hx),
+                self._upd_preview(self.bg_preview, hx))))
 
-        # ── Font Size ─────────────────────────────────────────────────────────
-        layout.add_widget(make_label(
-            L["font_size"], font_size=TH.fs_small,
-            color=TH.grey, bold=True, height=24))
-        font_row = BoxLayout(size_hint_y=None, height=52, spacing=8)
-        for fs_name, fs_key in [("Small","small"),("Medium","medium"),("Large","large")]:
+        layout.add_widget(theme_card)
+
+        # ── Display section ─────────────────────────────────────────────
+        layout.add_widget(self._section("DISPLAY"))
+        disp_card = self._card()
+        disp_card.add_widget(self._field_label(L["font_size"]))
+        font_row = BoxLayout(size_hint_y=None, height=44, spacing=8)
+        for fs_name, fs_key in [("Small", "small"), ("Medium", "medium"), ("Large", "large")]:
             is_sel = (t["font_size"] == fs_name)
-            fb = Button(
-                text=L[fs_key], font_size=TH.fs_normal, bold=True,
-                background_normal="",
-                background_color=TH.primary if is_sel else TH.card,
-                color=TH.gold_text if is_sel else TH.grey,
-                size_hint_y=None, height=52)
-            fb.fs_name = fs_name
-            fb.bind(on_press=lambda b, *a: self._set_font(b.fs_name))
+            fb = self._segmented_btn(
+                L[fs_key], is_sel,
+                on_press=lambda b=fs_name: self._set_font(b))
             font_row.add_widget(fb)
-        layout.add_widget(font_row)
-        layout.add_widget(divider())
+        disp_card.add_widget(font_row)
 
-        # ── Language ──────────────────────────────────────────────────────────
-        layout.add_widget(make_label(
-            L["language"], font_size=TH.fs_small,
-            color=TH.grey, bold=True, height=24))
-        lang_row = BoxLayout(size_hint_y=None, height=52, spacing=8)
+        disp_card.add_widget(spacer(6))
+        disp_card.add_widget(self._field_label(L["language"]))
+        lang_row = BoxLayout(size_hint_y=None, height=44, spacing=8)
         cur_lang = load_lang()
         for lang_name in ["English", "Myanmar", "Thai"]:
             is_sel = (cur_lang == lang_name)
-            lb = Button(
-                text=lang_name, font_size=TH.fs_normal, bold=True,
-                background_normal="",
-                background_color=TH.primary if is_sel else TH.card,
-                color=TH.gold_text if is_sel else TH.grey,
-                size_hint_y=None, height=52)
-            lb.lang_name = lang_name
-            lb.bind(on_press=lambda b, *a: self._set_lang(b.lang_name))
+            lb = self._segmented_btn(
+                lang_name, is_sel,
+                on_press=lambda l=lang_name: self._set_lang(l))
             lang_row.add_widget(lb)
-        layout.add_widget(lang_row)
-        layout.add_widget(divider())
+        disp_card.add_widget(lang_row)
+        layout.add_widget(disp_card)
 
-        # ── PIN LOCK toggle ───────────────────────────────────────────────────
-        layout.add_widget(make_label(
-            "PIN LOCK", font_size=TH.fs_small,
-            color=TH.grey, bold=True, height=24))
+        # ── Security section ────────────────────────────────────────────
+        layout.add_widget(self._section("SECURITY"))
+        sec_card = self._card()
+        # Status row
+        status_row = BoxLayout(size_hint_y=None, height=44, spacing=8)
+        status_row.add_widget(Label(
+            text="PIN Lock", font_size=TH.fs_normal, bold=True,
+            color=TH.text_main, halign="left", valign="middle",
+            text_size=(160, None)))
+        status_chip = chip(
+            "ENABLED" if pin_on else "DISABLED",
+            fg=TH.gold_text if pin_on else TH.white,
+            bg=TH.green if pin_on else TH.grey,
+            font_size=9)
+        status_row.add_widget(BoxLayout())
+        status_row.add_widget(status_chip)
+        sec_card.add_widget(status_row)
 
-        # Status indicator
-        status_text = ("Enabled  —  PIN required on startup"
-                       if pin_on else
-                       "Disabled  —  app opens without PIN")
-        status_col = TH.green if pin_on else TH.grey
-        layout.add_widget(make_label(
-            status_text, font_size=TH.fs_small,
-            color=status_col, height=22))
+        sec_card.add_widget(Label(
+            text=("Required on app start" if pin_on else "App opens without PIN"),
+            font_size=11, color=TH.grey, halign="left", valign="middle",
+            size_hint_y=None, height=18, text_size=(320, None)))
 
-        # Enable / Disable buttons
-        pin_toggle_row = BoxLayout(size_hint_y=None, height=52, spacing=8)
+        sec_card.add_widget(spacer(4))
+        pin_row = BoxLayout(size_hint_y=None, height=44, spacing=8)
         for label, val in [("Enable", True), ("Disable", False)]:
             is_sel = (pin_on == val)
-            bg_col = TH.primary if is_sel else TH.card
-            if val is False and is_sel:
-                bg_col = TH.red
-            txt_col = TH.gold_text if (is_sel and val) else (TH.white if (is_sel and not val) else TH.grey)
-            tb = Button(
-                text=label, font_size=TH.fs_normal, bold=True,
-                background_normal="",
-                background_color=bg_col,
-                color=txt_col,
-                size_hint_y=None, height=52)
-            tb.pin_val = val
-            tb.bind(on_press=lambda b, *a: self._set_pin_enabled(b.pin_val))
-            pin_toggle_row.add_widget(tb)
-        layout.add_widget(pin_toggle_row)
-        layout.add_widget(divider())
-           
-        # ── Change PIN ────────────────────────────────────────────────────────
-        layout.add_widget(make_label(
-            L["change_pin"], font_size=TH.fs_small,
-            color=TH.grey if not pin_on else TH.grey,
-            bold=True, height=24))
+            color_active = TH.green if val else TH.red
+            tb = self._segmented_btn(
+                label, is_sel,
+                on_press=lambda v=val: self._set_pin_enabled(v),
+                active_bg=color_active)
+            pin_row.add_widget(tb)
+        sec_card.add_widget(pin_row)
 
-        change_pin_btn = gold_btn(L["change_pin"], height=46)
+        sec_card.add_widget(spacer(4))
+        change_pin_btn = self._segmented_btn(
+            L["change_pin"], False,
+            on_press=self.show_change_pin if pin_on else None,
+            active_bg=TH.primary)
+        change_pin_btn.color = TH.text_main if pin_on else TH.grey
         if not pin_on:
-            # Grayed out when PIN is disabled
-            change_pin_btn.background_color = TH.card
-            change_pin_btn.color            = TH.grey
-            change_pin_btn.disabled         = True
-        else:
-            change_pin_btn.bind(on_press=self.show_change_pin)
-        layout.add_widget(change_pin_btn)
-        layout.add_widget(divider())
+            change_pin_btn.disabled = True
+        sec_card.add_widget(change_pin_btn)
+        layout.add_widget(sec_card)
 
-        # ── Save / Reset ──────────────────────────────────────────────────────
-        save_btn = gold_btn(L["save_apply"], height=54)
+        # ── Actions ─────────────────────────────────────────────────────
+        layout.add_widget(spacer(6))
+        save_btn = gold_btn(L["save_apply"], height=52)
         save_btn.bind(on_press=self.save_settings)
         layout.add_widget(save_btn)
 
@@ -260,10 +192,88 @@ class SettingsScreen(Screen):
         reset_btn.bind(on_press=self.reset_settings)
         layout.add_widget(reset_btn)
 
-        layout.add_widget(BoxLayout(size_hint_y=None, height=24))
+        layout.add_widget(spacer(20))
         scroll.add_widget(layout)
         root.add_widget(scroll)
         self.add_widget(root)
+
+    # ── UI helpers ───────────────────────────────────────────────────────
+    def _section(self, text):
+        wrap = BoxLayout(size_hint_y=None, height=22, padding=[2, 0])
+        wrap.add_widget(Label(
+            text=text, font_size=10, bold=True,
+            color=TH.primary, halign="left", valign="middle",
+            text_size=(360, None)))
+        return wrap
+
+    def _card(self):
+        c = BoxLayout(
+            orientation="vertical",
+            size_hint_y=None, padding=[14, 12, 14, 14],
+            spacing=8)
+        c.bind(minimum_height=c.setter("height"))
+        fill_rounded(c, TH.card, radius=14, border_color=(1, 1, 1, 0.05))
+        return c
+
+    def _field_label(self, text):
+        return Label(
+            text=text, font_size=11, bold=True,
+            color=TH.grey, halign="left", valign="middle",
+            size_hint_y=None, height=18,
+            text_size=(360, None))
+
+    def _mini_label(self, text):
+        return Label(
+            text=text, font_size=10,
+            color=TH.grey, halign="left", valign="middle",
+            size_hint_y=None, height=16,
+            text_size=(360, None))
+
+    def _input(self, text):
+        ti = TextInput(
+            text=text, multiline=False,
+            size_hint_y=None, height=46,
+            font_size=TH.fs_normal,
+            background_color=TH.input_bg,
+            background_normal="",
+            foreground_color=TH.text_main,
+            cursor_color=TH.primary,
+            padding=[14, 14])
+        return ti
+
+    def _swatches(self, items, on_pick):
+        rows = BoxLayout(orientation="vertical", size_hint_y=None, spacing=4)
+        rows.bind(minimum_height=rows.setter("height"))
+        per_row = 5
+        for i in range(0, len(items), per_row):
+            r = BoxLayout(size_hint_y=None, height=36, spacing=6)
+            for k, hx in items[i:i + per_row]:
+                btn = Button(
+                    text="", size_hint_y=None, height=36,
+                    background_normal="", background_color=(0, 0, 0, 0))
+                fill_rounded(btn, _hex_color(hx), radius=8,
+                             border_color=(1, 1, 1, 0.10))
+                btn.hx = hx
+                btn.bind(on_press=lambda b, *_: on_pick(b.hx))
+                r.add_widget(btn)
+            # pad row if short
+            for _ in range(per_row - len(items[i:i + per_row])):
+                r.add_widget(BoxLayout())
+            rows.add_widget(r)
+        return rows
+
+    def _segmented_btn(self, text, is_sel, on_press=None, active_bg=None):
+        active_bg = active_bg or TH.primary
+        btn = Button(
+            text=text, font_size=TH.fs_normal, bold=True,
+            size_hint_y=None, height=44,
+            background_normal="", background_color=(0, 0, 0, 0),
+            color=TH.gold_text if is_sel else TH.text_main)
+        bg = active_bg if is_sel else TH.card2
+        fill_rounded(btn, bg, radius=10)
+        if on_press:
+            btn.bind(on_press=lambda *_: on_press())
+        return btn
 
     # ── PIN Lock toggle ───────────────────────────────────────────────────────
     def _set_pin_enabled(self, val):

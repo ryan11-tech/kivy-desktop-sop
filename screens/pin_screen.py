@@ -3,10 +3,11 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.clock import Clock
-from kivy.graphics import Color, Rectangle, Line, RoundedRectangle
+from kivy.graphics import Color, Line, RoundedRectangle
+
 from theme import TH
 from lang import L
-from utils import set_bg, gold_line, load_pin
+from utils import set_bg, fill_rounded, load_pin
 
 
 class PINScreen(Screen):
@@ -27,150 +28,136 @@ class PINScreen(Screen):
         self.clear_widgets()
         root = BoxLayout(orientation="vertical")
         set_bg(root, TH.bg)
-        root.add_widget(gold_line(2))
-        root.add_widget(BoxLayout(size_hint_y=None, height=40))
 
+        root.add_widget(BoxLayout(size_hint_y=None, height=60))
+
+        # Brand
+        logo = BoxLayout(
+            size_hint=(None, None), size=(72, 72),
+            pos_hint={"center_x": 0.5})
+        fill_rounded(logo, TH.primary, radius=18)
+        logo.add_widget(Label(
+            text="T", font_size=32, bold=True,
+            color=TH.gold_text,
+            halign="center", valign="middle"))
+        root.add_widget(logo)
+
+        root.add_widget(BoxLayout(size_hint_y=None, height=18))
         root.add_widget(Label(
-            text=L.get("app_title", "TEA SOP"),
-            font_size=32, bold=True,
-            color=TH.primary,
-            size_hint_y=None, height=60,
-            halign="center"))
-        root.add_widget(Label(
-            text=L.get("pin_enter", "Enter PIN"),
-            font_size=14, color=TH.grey,
+            text=L.get("app_title", "Tea SOP"),
+            font_size=22, bold=True,
+            color=TH.text_main,
             size_hint_y=None, height=30,
             halign="center"))
+        root.add_widget(Label(
+            text=L.get("pin_enter", "Enter PIN to continue"),
+            font_size=12, color=TH.grey,
+            size_hint_y=None, height=22,
+            halign="center"))
 
-        root.add_widget(BoxLayout(size_hint_y=None, height=30))
+        root.add_widget(BoxLayout(size_hint_y=None, height=28))
 
-        # PIN dots row
-        self.dot_row = BoxLayout(
-            size_hint_y=None, height=60,
-            size_hint_x=None, width=250,
-            pos_hint={"center_x": 0.5},
-            spacing=24)
-        root.add_widget(self.dot_row)
-
-        # Create dots (iOS Style Glass)
-        self.dots = []
+        # PIN dots
         pin_data = load_pin()
-        pin_len  = len(pin_data.get("pin", "1234"))
-        for i in range(pin_len):
-            dot_container = BoxLayout(size_hint=(None, None), size=(20, 20),
-                                     pos_hint={"center_y": 0.5})
-            with dot_container.canvas.before:
-                # Glass background for inactive
-                dot_container.color_instr = Color(1, 1, 1, 0.1)
-                dot_container.rect_instr  = RoundedRectangle(pos=dot_container.pos, 
-                                                           size=dot_container.size, radius=[10])
-                # Subtle border
-                Color(1, 1, 1, 0.15)
-                dot_container.line_instr = Line(rounded_rectangle=(dot_container.x, dot_container.y, 
-                                                                  dot_container.width, dot_container.height, 10), width=1.1)
-            
-            def update_dot(w, *a):
-                w.rect_instr.pos = w.pos
-                w.rect_instr.size = w.size
-                w.line_instr.rounded_rectangle = (w.x, w.y, w.width, w.height, 10)
-            dot_container.bind(pos=update_dot, size=update_dot)
-            
-            self.dot_row.add_widget(dot_container)
-            self.dots.append(dot_container)
-
+        pin_len = len(pin_data.get("pin", "1234"))
+        dot_wrap = BoxLayout(
+            size_hint=(None, None), height=32,
+            width=pin_len * 32 + (pin_len - 1) * 18,
+            pos_hint={"center_x": 0.5},
+            spacing=18)
+        self.dots = []
+        for _ in range(pin_len):
+            dot = BoxLayout(
+                size_hint=(None, None), size=(16, 16),
+                pos_hint={"center_y": 0.5})
+            with dot.canvas.before:
+                dot.color_instr = Color(1, 1, 1, 0.18)
+                dot.rect_instr = RoundedRectangle(
+                    pos=dot.pos, size=dot.size, radius=[8])
+            dot.bind(
+                pos=lambda w, v: setattr(w.rect_instr, "pos", v),
+                size=lambda w, v: setattr(w.rect_instr, "size", v))
+            dot_wrap.add_widget(dot)
+            self.dots.append(dot)
+        root.add_widget(dot_wrap)
         self._refresh_dots()
 
-        # Error label
+        # Error
         self.error_lbl = Label(
-            text="", font_size=TH.fs_small,
-            color=TH.red,
-            size_hint_y=None, height=30,
+            text="", font_size=12, color=TH.red,
+            size_hint_y=None, height=28,
             halign="center")
+        root.add_widget(BoxLayout(size_hint_y=None, height=8))
         root.add_widget(self.error_lbl)
-        root.add_widget(BoxLayout(size_hint_y=None, height=20))
+
+        root.add_widget(BoxLayout(size_hint_y=None, height=12))
 
         # Keypad
         pad = BoxLayout(
             orientation="vertical",
-            size_hint_y=None, height=280,
-            size_hint_x=None, width=280,
+            size_hint=(None, None), size=(300, 320),
             pos_hint={"center_x": 0.5},
-            spacing=10)
+            spacing=12)
 
-        buttons = [
+        keypad = [
             ["1", "2", "3"],
             ["4", "5", "6"],
             ["7", "8", "9"],
             ["CLR", "0", "DEL"],
         ]
-
-        def apply_glass_style(btn, glass_color=(1, 1, 1, 0.08), border_color=(1, 1, 1, 0.12)):
-            with btn.canvas.before:
-                # Main Glass background
-                btn.glass_bg = Color(*glass_color)
-                btn.glass_rect = RoundedRectangle(pos=btn.pos, size=btn.size, radius=[30])
-                # Subtle highlight border
-                btn.glass_border_color = Color(*border_color)
-                btn.glass_border = Line(rounded_rectangle=(btn.x, btn.y, btn.width, btn.height, 30), width=1.1)
-            
-            def update_glass(w, *a):
-                w.glass_rect.pos = w.pos
-                w.glass_rect.size = w.size
-                w.glass_border.rounded_rectangle = (w.x, w.y, w.width, w.height, 30)
-            btn.bind(pos=update_glass, size=update_glass)
-
-        for row_keys in buttons:
-            row = BoxLayout(spacing=18, size_hint_y=None, height=65)
+        for row_keys in keypad:
+            row = BoxLayout(spacing=12, size_hint_y=None, height=72)
             for key in row_keys:
-                if key == "CLR":
-                    btn = Button(
-                        text=L.get("pin_clr", "CLR"), font_size=14, bold=False,
-                        background_normal="", background_color=(0,0,0,0),
-                        color=TH.white)
-                    apply_glass_style(btn, glass_color=(0.3, 0.1, 0.1, 0.25), border_color=TH.primary)
-                elif key == "DEL":
-                    btn = Button(
-                        text=L.get("pin_del", "DEL"), font_size=14, bold=False,
-                        background_normal="", background_color=(0,0,0,0),
-                        color=TH.white)
-                    apply_glass_style(btn, glass_color=(0.3, 0.1, 0.1, 0.25), border_color=TH.primary)
-                else:
-                    btn = Button(
-                        text=key, font_size=24, bold=False,
-                        background_normal="", background_color=(0,0,0,0),
-                        color=TH.white)
-                    apply_glass_style(btn)
-                btn.key = key
-                btn.bind(on_press=self.on_key)
+                btn = self._key_btn(key)
                 row.add_widget(btn)
             pad.add_widget(row)
 
         root.add_widget(pad)
         root.add_widget(BoxLayout())
-        root.add_widget(gold_line(2))
         self.add_widget(root)
 
+    def _key_btn(self, key):
+        if key == "CLR":
+            text = L.get("pin_clr", "CLR")
+            font_size = 13
+            fg = TH.red
+            bg = TH.card
+        elif key == "DEL":
+            text = L.get("pin_del", "DEL")
+            font_size = 13
+            fg = TH.red
+            bg = TH.card
+        else:
+            text = key
+            font_size = 26
+            fg = TH.text_main
+            bg = TH.card
+
+        btn = Button(
+            text=text, font_size=font_size, bold=True,
+            background_normal="", background_color=(0, 0, 0, 0),
+            color=fg)
+        fill_rounded(btn, bg, radius=36, border_color=(1, 1, 1, 0.06))
+        btn.key = key
+        btn.bind(on_press=self.on_key)
+        return btn
+
     def _refresh_dots(self):
-        if not hasattr(self, 'dots'): return
+        if not hasattr(self, "dots"):
+            return
         for i, dot in enumerate(self.dots):
             filled = i < len(self.entered)
-            # Glass style but with Red (Primary) feedback
-            if filled:
-                dot.color_instr.rgba = TH.primary
-            else:
-                dot.color_instr.rgba = (1, 1, 1, 0.1)
-            
-    def on_key(self, btn):
-        # Visual feedback on press
-        old_color = btn.glass_bg.rgba[:]
-        btn.glass_bg.rgba = (1, 1, 1, 0.2)
-        def reset_color(*a):
-            btn.glass_bg.rgba = old_color
-        Clock.schedule_once(reset_color, 0.1)
+            dot.color_instr.rgba = TH.primary if filled else (1, 1, 1, 0.18)
 
-        key      = btn.key
+    def on_key(self, btn):
+        # Tap feedback
+        old = btn._fill_color.rgba[:]
+        btn._fill_color.rgba = (TH.primary[0], TH.primary[1], TH.primary[2], 0.25)
+        Clock.schedule_once(lambda *_: setattr(btn._fill_color, "rgba", old), 0.08)
+
+        key = btn.key
         pin_data = load_pin()
-        correct  = pin_data.get("pin", "1234")
+        correct = pin_data.get("pin", "1234")
 
         if key == "CLR":
             self.entered = ""

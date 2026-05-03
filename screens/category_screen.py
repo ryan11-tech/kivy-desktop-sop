@@ -1,3 +1,5 @@
+import os
+
 from kivy.uix.screenmanager import Screen
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.scrollview import ScrollView
@@ -7,12 +9,17 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.popup import Popup
 from kivy.uix.spinner import Spinner
 from kivy.graphics import Color, Rectangle, RoundedRectangle, Line
+
 from theme import TH
 from lang import L
-from utils import (set_bg, gold_line, divider, make_label,
-                   card_box, gold_btn, ghost_btn, danger_btn,
+from utils import (set_bg, fill_rounded, divider, make_label, spacer, hspacer,
+                   card_box, gold_btn, ghost_btn, danger_btn, icon_btn, chip,
+                   type_chip_for_recipe,
                    outline_btn, section_label, load_data, save_data,
                    get_mode)
+
+CUR_DIR = os.path.dirname(os.path.abspath(__file__))
+FA_FONT = os.path.join(os.path.dirname(CUR_DIR), "assets", "fa-solid-900.ttf")
 
 # ── Swipe-to-Favorite card ───────────────────────────────────────────────────
 
@@ -53,61 +60,79 @@ class CategoryScreen(Screen):
         self.current_cat_id = cat_id
         self.clear_widgets()
         data = load_data()
-        cat  = next(c for c in data["categories"] if c["id"] == cat_id)
+        cat = next(c for c in data["categories"] if c["id"] == cat_id)
 
         root = BoxLayout(orientation="vertical")
         set_bg(root, TH.bg)
-        root.add_widget(gold_line(2))
 
-        # ── Header ──────────────────────────────────────────────────────────
-        header = BoxLayout(size_hint_y=None, height=62, padding=[14, 8])
-        set_bg(header, TH.header_bg)
+        # ── Top bar ─────────────────────────────────────────────────────
+        top = BoxLayout(size_hint_y=None, height=64, padding=[14, 10], spacing=10)
+        set_bg(top, TH.bg)
 
-        back = Button(
-            text=L["btn_back"], font_size=TH.fs_small, bold=True,
-            size_hint=(None, None), size=(70, 36),
-            background_normal="", background_color=(0,0,0,0),
-            color=TH.primary)
-        back.bind(on_press=lambda x: self._go_back())
-        header.add_widget(back)
+        back = icon_btn("<",
+                        on_press=lambda *_: self._go_back(),
+                        size=(44, 40),
+                        fg=TH.text_main, bg=TH.card,
+                        font_size=22, radius=12)
+        top.add_widget(back)
 
-        header.add_widget(Label(
-            text=cat["name"],
-            font_size=TH.fs_large, bold=True,
-            color=TH.primary, halign="center"))
-
-        count_box = BoxLayout(
-            size_hint=(None, None), size=(70, 36),
-            pos_hint={"center_y": 0.5})
-        set_bg(count_box, (0,0,0,0))
-        count_box.add_widget(Label(
+        title_col = BoxLayout(orientation="vertical")
+        title_col.add_widget(Label(
+            text=cat["name"], font_size=18, bold=True,
+            color=TH.text_main, halign="left", valign="middle",
+            size_hint_y=None, height=24,
+            text_size=(220, None)))
+        title_col.add_widget(Label(
             text=f"{len(cat['recipes'])} {L['recipes_count']}",
-            font_size=10, color=TH.grey,
-            halign="right"))
-        header.add_widget(count_box)
-        root.add_widget(header)
-        root.add_widget(gold_line(1))
+            font_size=11, color=TH.grey,
+            halign="left", valign="middle",
+            size_hint_y=None, height=16,
+            text_size=(220, None)))
+        top.add_widget(title_col)
 
-        # ── Recipe List ──────────────────────────────────────────────────────
-        scroll = ScrollView()
+        # Spacer right
+        top.add_widget(BoxLayout(size_hint=(None, None), size=(40, 40)))
+
+        root.add_widget(top)
+
+        # Subtle top divider
+        root.add_widget(divider())
+
+        # ── Recipe List ─────────────────────────────────────────────────
+        scroll = ScrollView(bar_width=2)
         layout = BoxLayout(
-            orientation="vertical", spacing=10,
-            padding=[14, 14], size_hint_y=None)
+            orientation="vertical", spacing=12,
+            padding=[14, 12, 14, 18], size_hint_y=None)
         layout.bind(minimum_height=layout.setter("height"))
 
-        for recipe in cat["recipes"]:
-            r_card = self._make_recipe_card(recipe, cat_id)
-            layout.add_widget(r_card)
-
         if get_mode() == "Admin":
-            add_btn = gold_btn(L["add_recipe"], height=52)
+            add_btn = gold_btn(L["add_recipe"], height=48)
             add_btn.bind(on_press=lambda x: self.show_add_recipe(cat_id))
             layout.add_widget(add_btn)
 
+        if not cat["recipes"]:
+            empty = BoxLayout(
+                orientation="vertical", spacing=10,
+                padding=[24, 60, 24, 24], size_hint_y=None, height=200)
+            empty.add_widget(Label(
+                text="", font_size=42,
+                font_name=FA_FONT, color=TH.grey,
+                size_hint_y=None, height=60, halign="center"))
+            empty.add_widget(Label(
+                text="No recipes yet", font_size=TH.fs_large, bold=True,
+                color=TH.text_main, size_hint_y=None, height=28,
+                halign="center"))
+            empty.add_widget(Label(
+                text="Tap '+ Add New Recipe' to start.",
+                font_size=TH.fs_small, color=TH.grey,
+                size_hint_y=None, height=24, halign="center"))
+            layout.add_widget(empty)
+        else:
+            for recipe in cat["recipes"]:
+                layout.add_widget(self._make_recipe_card(recipe, cat_id))
+
         scroll.add_widget(layout)
         root.add_widget(scroll)
-
-        # ── Bottom Nav ───────────────────────────────────────────────────────
         self.add_widget(root)
 
     def _go_back(self):
@@ -117,18 +142,11 @@ class CategoryScreen(Screen):
         self.manager.current = "home"
 
     def _make_recipe_card(self, recipe, cat_id):
-        """Recipe card with image strip, swipe-to-favorite, edit/del."""
+        """Recipe card: rounded, type chip, fav toggle, swipe-to-fav, admin actions."""
 
-        # Determine recipe type for image strip color & label
-        if "variants" in recipe:
-            strip_color = TH.primary
-            strip_label = "HOT\nICED"
-        elif "parameters" in recipe:
-            strip_color = TH.primary
-            strip_label = "SOP"
-        else:
-            strip_color = TH.primary
-            strip_label = "STEP"
+        rtype = recipe.get("type") or (
+            "drink" if "variants" in recipe else
+            "sop" if "parameters" in recipe else "steps")
 
         def do_toggle():
             self._toggle_fav_direct(recipe["id"], cat_id)
@@ -138,147 +156,147 @@ class CategoryScreen(Screen):
             orientation="vertical",
             size_hint_y=None, padding=0, spacing=0)
         card.bind(minimum_height=card.setter("height"))
+        fill_rounded(card, TH.card, radius=14, border_color=(1, 1, 1, 0.05))
 
-        def draw_card(w, *a):
-            w.canvas.before.clear()
-            with w.canvas.before:
-                Color(*TH.card)
-                Rectangle(pos=w.pos, size=w.size)
-                Color(*TH.divider)
-                Line(rectangle=(w.x, w.y, w.width, w.height), width=0.8)
-        card.bind(pos=draw_card, size=draw_card)
+        # ── Header row: type chip + fav star
+        head = BoxLayout(
+            size_hint_y=None, height=44,
+            padding=[12, 8, 12, 4], spacing=8)
 
-        # ── Title Row ────────────────────────────────────────────────────────
-        title_row = BoxLayout(size_hint_y=None, height=52, padding=[0, 6])
+        # Type chip
+        if rtype == "drink":
+            tchip = chip("DRINK", fg=TH.gold_text, bg=TH.primary, font_size=9)
+        elif rtype == "sop":
+            tchip = chip("SOP", fg=TH.gold_text, bg=TH.primary, font_size=9)
+        else:
+            tchip = chip("STEPS", fg=TH.text_main, bg=TH.card2, font_size=9)
+        head.add_widget(tchip)
 
-        # Image strip (replaces thin gold bar)
-        img_strip = BoxLayout(
-            size_hint_x=None, width=36,
-            orientation="vertical")
+        head.add_widget(BoxLayout())  # spacer
 
-        def draw_strip(w, *a):
-            w.canvas.before.clear()
-            with w.canvas.before:
-                Color(*strip_color)
-                Rectangle(pos=w.pos, size=w.size)
-        img_strip.bind(pos=draw_strip, size=draw_strip)
-
-        strip_lbl = Label(
-            text=strip_label,
-            font_size=8, bold=True,
-            color=(0, 0, 0, 0.85),
-            halign="center", valign="middle")
-        img_strip.add_widget(strip_lbl)
-        title_row.add_widget(img_strip)
-        title_row.add_widget(BoxLayout(size_hint_x=None, width=8))
-
-        # Fav indicator
-        is_fav   = recipe.get("favorite", False)
-        fav_text = L["btn_fav"] if is_fav else L["btn_unfav"]
-        fav_col  = TH.fav if is_fav else TH.grey
-        fav_btn  = Button(
-            text=fav_text, font_size=9, bold=True,
-            size_hint=(None, None), size=(36, 30),
-            background_normal="", background_color=(0,0,0,0),
-            color=fav_col)
+        # Favorite star
+        is_fav = recipe.get("favorite", False)
+        fav_btn = Button(
+            text="" if is_fav else "",
+            font_size=15, font_name=FA_FONT,
+            size_hint=(None, None), size=(34, 34),
+            background_normal="", background_color=(0, 0, 0, 0),
+            color=TH.fav if is_fav else TH.grey)
         fav_btn.recipe_id = recipe["id"]
-        fav_btn.cat_id    = cat_id
+        fav_btn.cat_id = cat_id
         fav_btn.bind(on_press=self.toggle_favorite)
-        title_row.add_widget(fav_btn)
-        title_row.add_widget(BoxLayout(size_hint_x=None, width=4))
+        head.add_widget(fav_btn)
 
-        # Recipe name button
+        card.add_widget(head)
+
+        # ── Recipe name (tap → open)
         name_btn = Button(
             text=recipe["name"],
-            font_size=TH.fs_normal, bold=True,
-            background_normal="", background_color=(0,0,0,0),
-            color=TH.white, halign="left")
+            font_size=TH.fs_large, bold=True,
+            background_normal="", background_color=(0, 0, 0, 0),
+            color=TH.text_main, halign="left", valign="middle",
+            size_hint_y=None, height=36,
+            padding=[12, 0])
+        name_btn.bind(width=lambda w, v: setattr(w, "text_size", (v - 24, None)))
         name_btn.recipe_id = recipe["id"]
-        name_btn.cat_id    = cat_id
+        name_btn.cat_id = cat_id
         name_btn.bind(on_press=self.go_recipe)
-        title_row.add_widget(name_btn)
+        card.add_widget(name_btn)
 
-        # Edit button
-        edit_btn = Button(
-            text=L["btn_edit"], font_size=10, bold=True,
-            size_hint=(None, None), size=(44, 30),
-            background_normal="", background_color=(0,0,0,0),
-            color=TH.primary)
-        def draw_edit(w, *a):
-            w.canvas.before.clear()
-            with w.canvas.before:
-                Color(*TH.primary)
-                Line(rectangle=(w.x, w.y, w.width, w.height), width=0.8)
-        edit_btn.bind(pos=draw_edit, size=draw_edit)
-        edit_btn.recipe_id = recipe["id"]
-        edit_btn.cat_id    = cat_id
-        edit_btn.bind(on_press=self.show_edit_recipe)
-        if get_mode() == "Admin":
-            title_row.add_widget(edit_btn)
-            title_row.add_widget(BoxLayout(size_hint_x=None, width=6))
-
-        # Delete button
-        del_btn = Button(
-           text=L["btn_del"], font_size=10, bold=True,
-           size_hint=(None, None), size=(44, 30),
-           background_normal="", background_color=TH.red,
-            color=TH.white)
-        del_btn.recipe_id = recipe["id"]
-        del_btn.cat_id    = cat_id
-        del_btn.bind(on_press=self.confirm_delete_recipe)
-        if get_mode() == "Admin":
-            title_row.add_widget(del_btn)
-            title_row.add_widget(BoxLayout(size_hint_x=None, width=10))
-
-        card.add_widget(title_row)
-        card.add_widget(divider())
-
-        # ── Preview Row ──────────────────────────────────────────────────────
-        preview_box = BoxLayout(
-            orientation="horizontal",
-            size_hint_y=None, height=48,
-            padding=[14, 6], spacing=12)
-
-        if "variants" in recipe and recipe["variants"]:
+        # ── Preview line
+        if rtype == "drink" and recipe.get("variants"):
+            preview = BoxLayout(
+                size_hint_y=None, height=40,
+                padding=[12, 4, 12, 6], spacing=12)
             for v in recipe["variants"]:
-                vc    = TH.hot if v["type"] == "Hot" else TH.iced
+                vc = TH.hot if v["type"] == "Hot" else TH.iced
                 label = "HOT" if v["type"] == "Hot" else "ICED"
-                ings  = [i for i in v["ingredients"] if i["amount"] > 0]
+                ings = [i for i in v["ingredients"] if i["amount"] > 0]
 
-                v_col = BoxLayout(orientation="vertical",
-                                  size_hint_y=None, height=36, spacing=2)
+                v_col = BoxLayout(orientation="vertical", spacing=1)
                 v_col.add_widget(Label(
                     text=label, font_size=9, bold=True,
-                    color=vc, halign="left",
+                    color=vc, halign="left", valign="middle",
                     size_hint_y=None, height=14,
                     text_size=(160, None)))
-                preview_text = "  ".join(
+                preview_text = " · ".join(
                     [f"{int(i['amount']) if i['amount']==int(i['amount']) else i['amount']}{i['unit']} {i['name']}"
                      for i in ings[:2]])
                 if len(ings) > 2:
-                    preview_text += f"  +{len(ings)-2} more"
+                    preview_text += f"  +{len(ings)-2}"
                 v_col.add_widget(Label(
                     text=preview_text or "-",
-                    font_size=9, color=TH.grey,
-                    halign="left",
-                    size_hint_y=None, height=18,
+                    font_size=10, color=TH.grey,
+                    halign="left", valign="middle",
+                    size_hint_y=None, height=16,
                     text_size=(160, None)))
-                preview_box.add_widget(v_col)
+                preview.add_widget(v_col)
+            card.add_widget(preview)
 
-        elif "steps" in recipe:
-            preview_box.add_widget(Label(
-                text=f"{len(recipe['steps'])} steps",
-                font_size=TH.fs_small, color=TH.grey,
-                halign="left", text_size=(300, None)))
+        elif rtype == "sop":
+            preview = BoxLayout(
+                size_hint_y=None, height=28,
+                padding=[12, 0, 12, 6])
+            n_p = len(recipe.get("parameters", []))
+            n_s = len(recipe.get("steps", []))
+            preview.add_widget(Label(
+                text=f"{n_p} parameters · {n_s} steps",
+                font_size=11, color=TH.grey,
+                halign="left", valign="middle",
+                text_size=(280, None)))
+            card.add_widget(preview)
 
-        elif "parameters" in recipe:
-            preview_box.add_widget(Label(
-                text=f"{len(recipe['parameters'])} parameters",
-                font_size=TH.fs_small, color=TH.grey,
-                halign="left", text_size=(300, None)))
+        else:
+            preview = BoxLayout(
+                size_hint_y=None, height=28,
+                padding=[12, 0, 12, 6])
+            preview.add_widget(Label(
+                text=f"{len(recipe.get('steps', []))} steps",
+                font_size=11, color=TH.grey,
+                halign="left", valign="middle",
+                text_size=(280, None)))
+            card.add_widget(preview)
 
-        card.add_widget(preview_box)
+        # ── Admin actions
+        if get_mode() == "Admin":
+            card.add_widget(divider())
+            actions = BoxLayout(
+                size_hint_y=None, height=44,
+                padding=[10, 6], spacing=8)
+            actions.add_widget(BoxLayout())
+            edit_b = icon_btn("",
+                              on_press=lambda *_, rid=recipe["id"]: self._edit_rec(cat_id, rid),
+                              size=(36, 32), font=FA_FONT,
+                              fg=TH.primary, bg=TH.card2,
+                              font_size=12, radius=10)
+            del_b = icon_btn("",
+                             on_press=lambda *_, rid=recipe["id"]: self._del_rec(cat_id, rid),
+                             size=(36, 32), font=FA_FONT,
+                             fg=TH.red, bg=TH.card2,
+                             font_size=12, radius=10)
+            actions.add_widget(edit_b)
+            actions.add_widget(del_b)
+            card.add_widget(actions)
+        else:
+            card.add_widget(spacer(8))
+
         return card
+
+    def _edit_rec(self, cat_id, recipe_id):
+        class _F:
+            pass
+        f = _F()
+        f.cat_id = cat_id
+        f.recipe_id = recipe_id
+        self.show_edit_recipe(f)
+
+    def _del_rec(self, cat_id, recipe_id):
+        class _F:
+            pass
+        f = _F()
+        f.cat_id = cat_id
+        f.recipe_id = recipe_id
+        self.confirm_delete_recipe(f)
 
     # ── Favorite helpers ─────────────────────────────────────────────────────
 
