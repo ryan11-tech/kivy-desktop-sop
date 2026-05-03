@@ -1,6 +1,4 @@
-import json, os
-
-THEME_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "theme.json")
+from services import storage
 
 DEFAULT = {
     "primary":   "#C9A84C",
@@ -36,26 +34,23 @@ LIGHT_BG_PRESETS = {
 def _hex_color(h, a=1.0):
     try:
         h = h.lstrip("#")
-        if len(h) == 3: h = "".join(c*2 for c in h)
-        r,g,b = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
+        if len(h) == 3:
+            h = "".join(c*2 for c in h)
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
         return (r/255, g/255, b/255, a)
-    except:
+    except (ValueError, AttributeError):
         return (0.79, 0.66, 0.30, a)
 
 def load_theme():
-    try:
-        with open(THEME_PATH, "r") as f:
-            t = json.load(f)
-            for k in DEFAULT:
-                if k not in t: t[k] = DEFAULT[k]
-            return t
-    except:
+    t = storage.load_theme_raw()
+    if t is None:
         return DEFAULT.copy()
+    for k, v in DEFAULT.items():
+        t.setdefault(k, v)
+    return t
 
 def save_theme(t):
-    os.makedirs(os.path.dirname(THEME_PATH), exist_ok=True)
-    with open(THEME_PATH, "w") as f:
-        json.dump(t, f, indent=2)
+    storage.save_theme_raw(t)
 
 class Theme:
     def __init__(self):

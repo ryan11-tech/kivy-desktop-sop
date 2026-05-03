@@ -1,8 +1,6 @@
-import json, os
+from services import storage
 
-LANG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "lang.json")
 DEFAULT_LANG = "English"
-os.makedirs(os.path.dirname(LANG_PATH), exist_ok=True)
 STRINGS = {
     "English": {
         # App
@@ -285,18 +283,14 @@ STRINGS = {
 }
 
 def load_lang():
-    try:
-        if not os.path.exists(LANG_PATH):
-            save_lang(DEFAULT_LANG)
-        with open(LANG_PATH, "r", encoding="utf-8") as f:
-            d = json.load(f)
-        return d.get("lang", DEFAULT_LANG)
-    except:
+    d = storage.load_lang_raw()
+    if d is None:
+        save_lang(DEFAULT_LANG)
         return DEFAULT_LANG
+    return d.get("lang", DEFAULT_LANG)
 
 def save_lang(lang):
-    with open(LANG_PATH, "w", encoding="utf-8") as f:
-        json.dump({"lang": lang}, f, ensure_ascii=False, indent=2)
+    storage.save_lang_raw({"lang": lang})
 
 def get_strings():
     lang = load_lang()

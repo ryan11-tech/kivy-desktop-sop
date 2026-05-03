@@ -1,5 +1,3 @@
-import tkinter as tk
-from tkinter import filedialog
 from kivy.uix.screenmanager import Screen
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.scrollview import ScrollView
@@ -348,6 +346,8 @@ class CategoryScreen(Screen):
         inner.add_widget(img_edit_in)
         browse_btn2 = ghost_btn("Browse...", height=40)
         def browse_img2(x):
+            import tkinter as tk
+            from tkinter import filedialog
             root_tk = tk.Tk()
             root_tk.withdraw()
             path = filedialog.askopenfilename(
@@ -544,6 +544,8 @@ class CategoryScreen(Screen):
         inner.add_widget(fmt_sp)
         browse_btn = ghost_btn("Browse...", height=40)
         def browse_img(x):
+            import tkinter as tk
+            from tkinter import filedialog
             root_tk = tk.Tk()
             root_tk.withdraw()
             path = filedialog.askopenfilename(

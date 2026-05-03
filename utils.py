@@ -1,51 +1,26 @@
-import json, os
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.graphics import Color, Rectangle, RoundedRectangle, Line
-from theme import TH
 
-DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "recipes.json")
-PIN_PATH  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "pin.json")
+from services import auth, storage
+from theme import TH, _hex_color
+
 
 def load_data():
-    try:
-        with open(DATA_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        default = {"categories": []}
-        save_data(default)
-        return default
-    except json.JSONDecodeError:
-        default = {"categories": []}
-        save_data(default)
-        return default
-    
+    return storage.load_recipes()
+
+
 def save_data(data):
-    global _data_cache
-    _data_cache = data
-    with open(DATA_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2) 
-        
+    storage.save_recipes(data)
+
+
 def load_pin():
-    try:
-        with open(PIN_PATH, "r") as f:
-            return json.load(f)
-    except:
-        return {"pin": "1234"}
+    return storage.load_pin()
+
 
 def save_pin(data):
-    with open(PIN_PATH, "w") as f:
-        json.dump(data, f, indent=2)
-
-def _hex_color(h, a=1.0):
-    try:
-        h = h.lstrip("#")
-        if len(h) == 3: h = "".join(c*2 for c in h)
-        r,g,b = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
-        return (r/255, g/255, b/255, a)
-    except:
-        return (0.79, 0.66, 0.30, a)
+    storage.save_pin(data)
 
 def set_bg(widget, color):
     widget.canvas.before.clear()
@@ -168,14 +143,12 @@ def section_label(text, height=28):
         color=TH.grey, bold=True, height=height)
     
 def get_mode():
-    data = load_pin()
-    return data.get("mode", "Staff")
+    return auth.get_mode()
+
 
 def set_mode(mode):
-    data = load_pin()
-    data["mode"] = mode
-    save_pin(data)
+    auth.set_mode(mode)
+
 
 def check_admin_pin(entered):
-    data = load_pin()
-    return entered == data.get("admin_pin", "1234")
+    return auth.check_admin_pin(entered)

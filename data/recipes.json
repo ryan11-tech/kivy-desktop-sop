@@ -49,9 +49,11 @@
             "Stir continuously throughout the entire 8-minute period to extract maximum flavor.",
             "Filter the tea mixture using a clean tea sock into a pot."
           ],
-          "favorite": false,
+          "favorite": true,
           "notes": "",
-          "image": "C:/Users/Mgking/Pictures/Mae Charm Trip/P1020922.JPG"
+          "image": "",
+          "type": "sop",
+          "updated_at": "2026-05-03T11:17:22Z"
         }
       ]
     },
@@ -106,7 +108,10 @@
             }
           ],
           "favorite": false,
-          "image": "C:/Users/Mgking/Pictures/Zin Mae Teahouse/Zinme Starting/P1021748.JPG"
+          "image": "",
+          "type": "drink",
+          "notes": "",
+          "updated_at": "2026-05-03T11:17:22Z"
         },
         {
           "id": "cho_saint",
@@ -154,12 +159,15 @@
             }
           ],
           "favorite": false,
-          "image": "C:\\Users\\Mgking\\Pictures\\S__18587679.jpg"
+          "image": "",
+          "type": "drink",
+          "notes": "",
+          "updated_at": "2026-05-03T11:17:22Z"
         },
         {
           "id": "pot_siant",
           "name": "Pot Siant",
-          "image": "C:/Users/Mgking/Pictures/Mae Charm Trip/P1020926.JPG",
+          "image": "",
           "variants": [
             {
               "type": "Hot",
@@ -169,7 +177,11 @@
               "type": "Iced",
               "ingredients": []
             }
-          ]
+          ],
+          "type": "drink",
+          "favorite": false,
+          "notes": "",
+          "updated_at": "2026-05-03T11:17:22Z"
         }
       ]
     },
@@ -207,7 +219,11 @@
               "ingredients": []
             }
           ],
-          "image": "C:/Users/Mgking/Pictures/Zin Mae Teahouse/Zinme Starting/P1022098.JPG"
+          "image": "",
+          "type": "drink",
+          "favorite": false,
+          "notes": "",
+          "updated_at": "2026-05-03T11:17:22Z"
         }
       ]
     },
@@ -240,10 +256,14 @@
               ]
             }
           ],
-          "image": "C:\\Users\\Mgking\\Desktop\\Tea Bar\\2023-02-24.jpg",
-          "favorite": false
+          "image": "",
+          "favorite": false,
+          "type": "drink",
+          "notes": "",
+          "updated_at": "2026-05-03T11:17:22Z"
         }
       ]
     }
-  ]
+  ],
+  "schema_version": 2
 }
