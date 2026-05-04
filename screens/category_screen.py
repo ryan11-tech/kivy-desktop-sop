@@ -12,9 +12,11 @@ from kivy.graphics import Color, Rectangle, RoundedRectangle, Line
 
 from theme import TH
 from lang import L
+from screens.recipe_form import show_recipe_form
+from services import recipes as recipes_svc
 from utils import (set_bg, fill_rounded, divider, make_label, spacer, hspacer,
                    card_box, gold_btn, ghost_btn, danger_btn, icon_btn, chip,
-                   type_chip_for_recipe,
+                   gold_line, type_chip_for_recipe,
                    outline_btn, section_label, load_data, save_data,
                    get_mode)
 
@@ -177,7 +179,7 @@ class CategoryScreen(Screen):
         # Favorite star
         is_fav = recipe.get("favorite", False)
         fav_btn = Button(
-            text="" if is_fav else "",
+            text="",
             font_size=15, font_name=FA_FONT,
             size_hint=(None, None), size=(34, 34),
             background_normal="", background_color=(0, 0, 0, 0),
@@ -302,22 +304,12 @@ class CategoryScreen(Screen):
 
     def _toggle_fav_direct(self, recipe_id, cat_id):
         """Called by swipe gesture."""
-        data   = load_data()
-        cat    = next(c for c in data["categories"] if c["id"] == cat_id)
-        recipe = next(r for r in cat["recipes"] if r["id"] == recipe_id)
-        recipe["favorite"] = not recipe.get("favorite", False)
-        save_data(data)
+        recipes_svc.toggle_favorite(cat_id, recipe_id)
         self.load(cat_id)
 
     def toggle_favorite(self, btn):
         """Called by FAV button tap."""
-        data   = load_data()
-        cat    = next(c for c in data["categories"]
-                      if c["id"] == btn.cat_id)
-        recipe = next(r for r in cat["recipes"]
-                      if r["id"] == btn.recipe_id)
-        recipe["favorite"] = not recipe.get("favorite", False)
-        save_data(data)
+        recipes_svc.toggle_favorite(btn.cat_id, btn.recipe_id)
         self.load(btn.cat_id)
 
     def go_recipe(self, btn):
@@ -325,329 +317,21 @@ class CategoryScreen(Screen):
         self.manager.get_screen("recipe").load(btn.cat_id, btn.recipe_id)
         self.manager.current = "recipe"
 
-    # ── Edit Recipe ──────────────────────────────────────────────────────────
-
-    def show_edit_recipe(self, btn):
-        cat_id    = btn.cat_id
-        recipe_id = btn.recipe_id
-        data      = load_data()
-        cat       = next(c for c in data["categories"]
-                         if c["id"] == cat_id)
-        recipe    = next(r for r in cat["recipes"]
-                         if r["id"] == recipe_id)
-
-        scroll = ScrollView()
-        inner  = BoxLayout(
-            orientation="vertical", spacing=8,
-            padding=16, size_hint_y=None)
-        inner.bind(minimum_height=inner.setter("height"))
-        inner.add_widget(gold_line(1))
-        inner.add_widget(BoxLayout(size_hint_y=None, height=6))
-        inner.add_widget(section_label("RECIPE NAME", height=24))
-        name_in = TextInput(
-            text=recipe["name"], multiline=False,
-            size_hint_y=None, height=44,
-            font_size=TH.fs_normal,
-            background_color=TH.input_bg,
-            foreground_color=TH.white,
-            cursor_color=TH.primary)
-        inner.add_widget(name_in)
-        inner.add_widget(BoxLayout(size_hint_y=None, height=4))
-        inner.add_widget(section_label("IMAGE PATH (optional)", height=24))
-        img_edit_in = TextInput(
-            text=recipe.get("image", ""),
-            hint_text="e.g. C:/images/thai_tea.jpg",
-            multiline=False, size_hint_y=None, height=44,
-            font_size=TH.fs_small,
-            background_color=TH.input_bg,
-            foreground_color=TH.white)
-        inner.add_widget(img_edit_in)
-        browse_btn2 = ghost_btn("Browse...", height=40)
-        def browse_img2(x):
-            import tkinter as tk
-            from tkinter import filedialog
-            root_tk = tk.Tk()
-            root_tk.withdraw()
-            path = filedialog.askopenfilename(
-                title="Select Image",
-                filetypes=[("Image files", "*.jpg *.jpeg *.png *.webp")])
-            root_tk.destroy()
-            if path:
-                img_edit_in.text = path
-        browse_btn2.bind(on_press=browse_img2)
-        inner.add_widget(browse_btn2)
-        hot_text = iced_text = steps_text = ""
-        if "variants" in recipe:
-            for v in recipe["variants"]:
-                lines = "\n".join(
-                    f"{i['name']},{int(i['amount']) if i['amount']==int(i['amount']) else i['amount']},{i['unit']}"
-                    for i in v["ingredients"])
-                if v["type"] == "Hot": hot_text  = lines
-                else:                  iced_text = lines
-        if "steps" in recipe:
-            steps_text = "\n".join(recipe["steps"])
-
-        inner.add_widget(BoxLayout(size_hint_y=None, height=4))
-        inner.add_widget(section_label(
-            "HOT INGREDIENTS  (name,amount,unit)", height=24))
-        hot_in = TextInput(
-            text=hot_text, size_hint_y=None, height=100,
-            font_size=TH.fs_small,
-            background_color=TH.input_bg,
-            foreground_color=TH.white)
-        inner.add_widget(hot_in)
-
-        inner.add_widget(BoxLayout(size_hint_y=None, height=4))
-        inner.add_widget(section_label(
-            "ICED INGREDIENTS  (name,amount,unit)", height=24))
-        iced_in = TextInput(
-            text=iced_text, size_hint_y=None, height=100,
-            font_size=TH.fs_small,
-            background_color=TH.input_bg,
-            foreground_color=TH.white)
-        inner.add_widget(iced_in)
-
-        inner.add_widget(BoxLayout(size_hint_y=None, height=4))
-        inner.add_widget(section_label(
-            "STEPS  (one per line)", height=24))
-        steps_in = TextInput(
-            text=steps_text, size_hint_y=None, height=100,
-            font_size=TH.fs_small,
-            background_color=TH.input_bg,
-            foreground_color=TH.white)
-        inner.add_widget(steps_in)
-
-        inner.add_widget(BoxLayout(size_hint_y=None, height=8))
-        btns = BoxLayout(size_hint_y=None, height=44, spacing=8)
-        s = gold_btn("Save", height=44)
-        c = ghost_btn("Cancel", height=44)
-        btns.add_widget(s)
-        btns.add_widget(c)
-        inner.add_widget(btns)
-        scroll.add_widget(inner)
-
-        popup = Popup(
-            title="Edit Recipe", content=scroll,
-            size_hint=(0.95, 0.88),
-            background_color=TH.card)
-        s.bind(on_press=lambda x: self._save_edit_recipe(
-            cat_id, recipe_id,
-            name_in.text, hot_in.text,
-            iced_in.text, steps_in.text,
-            img_edit_in.text, popup))
-        c.bind(on_press=popup.dismiss)
-        popup.open()
-
-    def _parse_ingredients(self, text):
-        ings = []
-        for line in text.strip().splitlines():
-            parts = line.strip().split(",")
-            if len(parts) == 3:
-                try:
-                    ings.append({
-                        "name":   parts[0].strip(),
-                        "amount": float(parts[1].strip()),
-                        "unit":   parts[2].strip()})
-                except:
-                    pass
-        return ings
-
-    def _save_edit_recipe(self, cat_id, recipe_id,
-                          name, hot_t, iced_t, steps_t, img_path, popup):
-        if not name.strip(): return
-        data   = load_data()
-        cat    = next(c for c in data["categories"]
-                      if c["id"] == cat_id)
-        recipe = next(r for r in cat["recipes"]
-                      if r["id"] == recipe_id)
-        recipe["name"] = name.strip()
-        if img_path.strip():
-            recipe["image"] = img_path.strip()
-        elif "image" in recipe:
-            del recipe["image"]
-        hi = self._parse_ingredients(hot_t)
-        ii = self._parse_ingredients(iced_t)
-        ss = [s.strip() for s in steps_t.splitlines() if s.strip()]
-        if hi or ii:
-            recipe["variants"] = [
-                {"type": "Hot",  "ingredients": hi},
-                {"type": "Iced", "ingredients": ii}]
-            recipe.pop("steps", None)
-        if ss:
-            recipe["steps"] = ss
-            if not hi and not ii:
-                recipe.pop("variants", None)
-        save_data(data)
-        popup.dismiss()
-        self.load(cat_id)
-
-    # ── Delete Recipe ────────────────────────────────────────────────────────
-
-    def confirm_delete_recipe(self, btn):
-        cat_id    = btn.cat_id
-        recipe_id = btn.recipe_id
-        content   = BoxLayout(
-            orientation="vertical", padding=16, spacing=12)
-        set_bg(content, TH.bg)
-        content.add_widget(gold_line(1))
-        content.add_widget(BoxLayout(size_hint_y=None, height=8))
-        content.add_widget(make_label(
-            "Delete this recipe?\nThis cannot be undone.",
-            color=TH.white, halign="center",
-            font_size=TH.fs_normal, height=52))
-        btns = BoxLayout(size_hint_y=None, height=44, spacing=8)
-        yes = danger_btn("Delete", height=44)
-        no  = ghost_btn("Cancel", height=44)
-        btns.add_widget(yes)
-        btns.add_widget(no)
-        content.add_widget(btns)
-        popup = Popup(
-            title="", content=content,
-            size_hint=(0.85, 0.34),
-            background_color=TH.card,
-            separator_height=0)
-        yes.bind(on_press=lambda x: self._do_delete_recipe(
-            cat_id, recipe_id, popup))
-        no.bind(on_press=popup.dismiss)
-        popup.open()
-
-    def _do_delete_recipe(self, cat_id, recipe_id, popup):
-        data = load_data()
-        cat  = next(c for c in data["categories"]
-                    if c["id"] == cat_id)
-        cat["recipes"] = [
-            r for r in cat["recipes"] if r["id"] != recipe_id]
-        save_data(data)
-        popup.dismiss()
-        self.load(cat_id)
-
-    # ── Add Recipe ───────────────────────────────────────────────────────────
+    # ── Add / Edit / Delete via unified form ────────────────────────────────
 
     def show_add_recipe(self, cat_id):
-        scroll = ScrollView()
-        inner  = BoxLayout(
-            orientation="vertical", spacing=8,
-            padding=16, size_hint_y=None)
-        inner.bind(minimum_height=inner.setter("height"))
-        inner.add_widget(gold_line(1))
-        inner.add_widget(BoxLayout(size_hint_y=None, height=6))
-        inner.add_widget(section_label("RECIPE NAME", height=24))
-        name_in = TextInput(
-            hint_text=L["recipe_hint"],                                                                                     
-            multiline=False, size_hint_y=None, height=44,
-            font_size=TH.fs_normal,
-            background_color=TH.input_bg,
-            foreground_color=TH.white,
-            cursor_color=TH.primary)
-        inner.add_widget(name_in)        
-        inner.add_widget(BoxLayout(size_hint_y=None, height=4))
-        inner.add_widget(section_label("FORMAT", height=24))
-        inner.add_widget(BoxLayout(size_hint_y=None, height=4))
-        inner.add_widget(section_label("IMAGE PATH (optional)", height=24))
-        img_in = TextInput(
-            hint_text="e.g. C:/images/thai_tea.jpg",
-            multiline=False, size_hint_y=None, height=44,
-            font_size=TH.fs_small,
-            background_color=TH.input_bg,
-            foreground_color=TH.white)
-        inner.add_widget(img_in)
-        fmt_sp = Spinner(
-            text="Hot and Iced",
-            values=["Hot and Iced", "Steps Only"],
-            size_hint_y=None, height=44,
-            font_size=TH.fs_normal,
-            background_normal="",
-            background_color=TH.input_bg,
-            color=TH.white)
-        inner.add_widget(fmt_sp)
-        browse_btn = ghost_btn("Browse...", height=40)
-        def browse_img(x):
-            import tkinter as tk
-            from tkinter import filedialog
-            root_tk = tk.Tk()
-            root_tk.withdraw()
-            path = filedialog.askopenfilename(
-                title="Select Image",
-                filetypes=[("Image files", "*.jpg *.jpeg *.png *.webp")])
-            root_tk.destroy()
-            if path:
-                img_in.text = path
-        browse_btn.bind(on_press=browse_img)
-        inner.add_widget(browse_btn) 
-        inner.add_widget(BoxLayout(size_hint_y=None, height=4))
-        inner.add_widget(section_label(
-            "HOT INGREDIENTS  (name,amount,unit)", height=24))
-        hot_in = TextInput(
-            hint_text="Black Tea,150,ml",
-            size_hint_y=None, height=100,
-            font_size=TH.fs_small,
-            background_color=TH.input_bg,
-            foreground_color=TH.white)
-        inner.add_widget(hot_in)
+        show_recipe_form(cat_id, recipe=None,
+                         on_done=lambda: self.load(cat_id))
 
-        inner.add_widget(BoxLayout(size_hint_y=None, height=4))
-        inner.add_widget(section_label(
-            "ICED INGREDIENTS  (name,amount,unit)", height=24))
-        iced_in = TextInput(
-            hint_text="Black Tea,180,ml",
-            size_hint_y=None, height=100,
-            font_size=TH.fs_small,
-            background_color=TH.input_bg,
-            foreground_color=TH.white)
-        inner.add_widget(iced_in)
+    def show_edit_recipe(self, btn):
+        data = recipes_svc.all_data()
+        recipe = recipes_svc.find_recipe(data, btn.cat_id, btn.recipe_id)
+        if recipe is None:
+            return
+        show_recipe_form(btn.cat_id, recipe=recipe,
+                         on_done=lambda: self.load(btn.cat_id))
 
-        inner.add_widget(BoxLayout(size_hint_y=None, height=4))
-        inner.add_widget(section_label(
-            "STEPS  (one per line)", height=24))
-        steps_in = TextInput(
-            hint_text="Step 1\nStep 2",
-            size_hint_y=None, height=100,
-            font_size=TH.fs_small,
-            background_color=TH.input_bg,
-            foreground_color=TH.white)
-        inner.add_widget(steps_in)
-
-        inner.add_widget(BoxLayout(size_hint_y=None, height=8))
-        btns = BoxLayout(size_hint_y=None, height=44, spacing=8)
-        s = gold_btn("Save", height=44)
-        c = ghost_btn("Cancel", height=44)
-        btns.add_widget(s)
-        btns.add_widget(c)
-        inner.add_widget(btns)
-        scroll.add_widget(inner)
-
-        popup = Popup(
-            title="Add Recipe", content=scroll,
-            size_hint=(0.95, 0.88),
-            background_color=TH.card)
-        s.bind(on_press=lambda x: self._save_recipe(
-            cat_id, name_in.text, fmt_sp.text,
-            hot_in.text, iced_in.text, steps_in.text,
-            img_in.text, popup))
-        c.bind(on_press=popup.dismiss)
-        popup.open()
-
-    def _save_recipe(self, cat_id, name, fmt,
-                     hot_t, iced_t, steps_t, img_path, popup):
-        if not name.strip(): return
-        data   = load_data()
-        cat    = next(c for c in data["categories"]
-                      if c["id"] == cat_id)
-        recipe = {
-            "id":   name.strip().lower().replace(" ", "_"),
-            "name": name.strip()}
-        if img_path.strip():
-            recipe["image"] = img_path.strip()
-        if fmt == "Hot and Iced":
-            recipe["variants"] = [
-                {"type": "Hot",
-                 "ingredients": self._parse_ingredients(hot_t)},
-                {"type": "Iced",
-                 "ingredients": self._parse_ingredients(iced_t)}]
-        else:
-            recipe["steps"] = [
-                s.strip() for s in steps_t.splitlines() if s.strip()]
-        cat["recipes"].append(recipe)
-        save_data(data)
-        popup.dismiss()
-        self.load(cat_id)
+    def confirm_delete_recipe(self, btn):
+        # Delete is now part of the unified form, but keep this entry
+        # for the trash icon — open the form straight to delete confirm.
+        self.show_edit_recipe(btn)

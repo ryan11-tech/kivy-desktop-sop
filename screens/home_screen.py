@@ -10,6 +10,7 @@ from kivy.uix.popup import Popup
 from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle, RoundedRectangle, Line
 
+from services import recipes as recipes_svc
 from theme import TH, load_theme, save_theme
 from lang import L
 from utils import (set_bg, fill_rounded, divider, make_label, spacer, hspacer,
@@ -698,11 +699,7 @@ class HomeScreen(Screen):
     def _save_edit_cat(self, cat_id, name, icon, popup):
         if not name.strip():
             return
-        data = load_data()
-        cat = next(c for c in data["categories"] if c["id"] == cat_id)
-        cat["name"] = name.strip()
-        cat["icon"] = icon.strip() or ""
-        save_data(data)
+        recipes_svc.update_category(cat_id, name, icon)
         popup.dismiss()
         self.build_ui()
 
@@ -739,9 +736,7 @@ class HomeScreen(Screen):
         popup.open()
 
     def _do_delete_cat(self, cat_id, popup):
-        data = load_data()
-        data["categories"] = [c for c in data["categories"] if c["id"] != cat_id]
-        save_data(data)
+        recipes_svc.delete_category(cat_id)
         popup.dismiss()
         self.build_ui()
 
@@ -790,13 +785,10 @@ class HomeScreen(Screen):
     def _save_cat(self, name, icon, popup):
         if not name.strip():
             return
-        data = load_data()
-        data["categories"].append({
-            "id":      name.strip().lower().replace(" ", "_"),
-            "name":    name.strip(),
-            "icon":    icon.strip() or "",
-            "recipes": [],
-        })
-        save_data(data)
+        try:
+            recipes_svc.add_category(name, icon)
+        except ValueError as e:
+            print("add_category error:", e)
+            return
         popup.dismiss()
         self.build_ui()

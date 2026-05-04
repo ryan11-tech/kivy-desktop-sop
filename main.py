@@ -1,10 +1,38 @@
+import os
 import traceback
 from kivy.app import App
+from kivy.core.text import LabelBase
 from kivy.uix.screenmanager import ScreenManager, SlideTransition
 from kivy.core.window import Window
 from kivy.base import ExceptionHandler, ExceptionManager
 
 Window.size = (400, 700)
+
+
+def _register_lang_font():
+    """Override Roboto with a font covering the active UI language."""
+    try:
+        from lang import load_lang
+        lang = load_lang()
+    except Exception:
+        return
+    win_fonts = r"C:\Windows\Fonts"
+    pick = {
+        "Myanmar": ("mmrtext.ttf", "mmrtextb.ttf"),
+    }.get(lang)
+    if not pick:
+        return
+    reg = os.path.join(win_fonts, pick[0])
+    bold = os.path.join(win_fonts, pick[1])
+    if not os.path.exists(reg):
+        return
+    LabelBase.register(
+        name="Roboto",
+        fn_regular=reg,
+        fn_bold=bold if os.path.exists(bold) else reg)
+
+
+_register_lang_font()
 
 class CrashHandler(ExceptionHandler):
     def handle_exception(self, inst):

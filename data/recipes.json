@@ -53,7 +53,7 @@
           "notes": "",
           "image": "",
           "type": "sop",
-          "updated_at": "2026-05-03T11:17:22Z"
+          "updated_at": "2026-05-04T10:02:55Z"
         }
       ]
     },
@@ -107,11 +107,11 @@
               ]
             }
           ],
-          "favorite": false,
+          "favorite": true,
           "image": "",
           "type": "drink",
           "notes": "",
-          "updated_at": "2026-05-03T11:17:22Z"
+          "updated_at": "2026-05-04T10:03:21Z"
         },
         {
           "id": "cho_saint",
@@ -181,7 +181,7 @@
           "type": "drink",
           "favorite": false,
           "notes": "",
-          "updated_at": "2026-05-03T11:17:22Z"
+          "updated_at": "2026-05-04T10:07:14Z"
         }
       ]
     },
@@ -261,6 +261,32 @@
           "type": "drink",
           "notes": "",
           "updated_at": "2026-05-03T11:17:22Z"
+        }
+      ]
+    },
+    {
+      "id": "test_by__ynh",
+      "name": "Test by  YNH",
+      "icon": "tess",
+      "recipes": [
+        {
+          "name": "tset",
+          "image": "123123",
+          "type": "drink",
+          "variants": [
+            {
+              "type": "Hot",
+              "ingredients": []
+            },
+            {
+              "type": "Iced",
+              "ingredients": []
+            }
+          ],
+          "id": "tset",
+          "favorite": true,
+          "notes": "",
+          "updated_at": "2026-05-04T10:07:01Z"
         }
       ]
     }

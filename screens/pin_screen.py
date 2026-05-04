@@ -62,7 +62,7 @@ class PINScreen(Screen):
         pin_len = len(pin_data.get("pin", "1234"))
         dot_wrap = BoxLayout(
             size_hint=(None, None), height=32,
-            width=pin_len * 32 + (pin_len - 1) * 18,
+            width=pin_len * 16 + (pin_len - 1) * 18,
             pos_hint={"center_x": 0.5},
             spacing=18)
         self.dots = []

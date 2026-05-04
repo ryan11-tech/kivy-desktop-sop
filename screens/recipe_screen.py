@@ -10,9 +10,11 @@ from kivy.graphics import Color, Rectangle, RoundedRectangle, Line
 
 from theme import TH
 from lang import L
+from screens.recipe_form import show_recipe_form
+from services import recipes as recipes_svc
 from utils import (set_bg, fill_rounded, divider, make_label, spacer,
                    ghost_btn, gold_btn, card_box, icon_btn, chip,
-                   pill_tab_row, stepper, stat_row, step_item,
+                   gold_line, pill_tab_row, stepper, stat_row, step_item,
                    load_data, save_data, get_mode)
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,14 +25,12 @@ class RecipeScreen(Screen):
         super().__init__(**kw)
         self.active_tab    = "Hot"
         self.serving_count = 1
-        self.edit_mode     = False
 
     def load(self, cat_id, recipe_id):
         self.cat_id        = cat_id
         self.recipe_id     = recipe_id
         self.serving_count = 1
         self.active_tab    = "Hot"
-        self.edit_mode     = False
         self._build(cat_id, recipe_id)
 
     def _build(self, cat_id, recipe_id):
@@ -51,7 +51,6 @@ class RecipeScreen(Screen):
         set_bg(top, TH.bg)
 
         def go_back(*a):
-            self.edit_mode = False
             if self.manager:
                 self.manager.transition.direction = "right"
                 self.manager.get_screen("category").load(self.cat_id)
@@ -77,25 +76,16 @@ class RecipeScreen(Screen):
             text_size=(220, None)))
         top.add_widget(title_col)
 
-        # Right action: EDIT/SAVE for admin
+        # Right action: EDIT (admin only) — opens unified form popup
         if get_mode() == "Admin":
-            if not self.edit_mode:
-                action_btn = Button(
-                    text="EDIT", font_size=11, bold=True,
-                    size_hint=(None, None), size=(60, 40),
-                    background_normal="", background_color=(0, 0, 0, 0),
-                    color=TH.primary)
-                fill_rounded(action_btn, TH.card, radius=12,
-                             border_color=TH.primary)
-                action_btn.bind(on_press=lambda *_: self._enter_edit())
-            else:
-                action_btn = Button(
-                    text="SAVE", font_size=11, bold=True,
-                    size_hint=(None, None), size=(60, 40),
-                    background_normal="", background_color=(0, 0, 0, 0),
-                    color=TH.gold_text)
-                fill_rounded(action_btn, TH.primary, radius=12)
-                action_btn.bind(on_press=lambda x: self._save_edits(recipe))
+            action_btn = Button(
+                text="EDIT", font_size=11, bold=True,
+                size_hint=(None, None), size=(60, 40),
+                background_normal="", background_color=(0, 0, 0, 0),
+                color=TH.primary)
+            fill_rounded(action_btn, TH.card, radius=12,
+                         border_color=TH.primary)
+            action_btn.bind(on_press=lambda *_: self._open_edit_form())
             top.add_widget(action_btn)
         else:
             top.add_widget(BoxLayout(size_hint=(None, None), size=(40, 40)))
@@ -141,7 +131,7 @@ class RecipeScreen(Screen):
             meta_text.append(f"{n_p} params")
         if n_s:
             meta_text.append(f"{n_s} steps")
-        if "variants" in recipe:
+        if recipe.get("variants"):
             meta_text.append(f"{len(recipe['variants'])} variants")
         meta.add_widget(Label(
             text=" · ".join(meta_text),
@@ -150,37 +140,25 @@ class RecipeScreen(Screen):
             text_size=(280, None)))
         root.add_widget(meta)
 
-        # ── Serving stepper / Edit hint ────────────────────────────────
-        if not self.edit_mode:
-            stepper_wrap = BoxLayout(
-                size_hint_y=None, height=80,
-                padding=[14, 4, 14, 8])
+        # ── Serving stepper ─────────────────────────────────────────────
+        stepper_wrap = BoxLayout(
+            size_hint_y=None, height=80,
+            padding=[14, 4, 14, 8])
 
-            def update_serving(delta):
-                self.serving_count = max(1, min(99, self.serving_count + delta))
-                self.serving_lbl.text = f"x {self.serving_count}"
-                self._render_content(recipe)
+        def update_serving(delta):
+            self.serving_count = max(1, min(99, self.serving_count + delta))
+            self.serving_lbl.text = f"x {self.serving_count}"
+            self._render_content(recipe)
 
-            stp, val_lbl = stepper(
-                value_text=f"x {self.serving_count}",
-                on_minus=lambda: update_serving(-1),
-                on_plus=lambda: update_serving(1),
-                on_reset=lambda: update_serving(1 - self.serving_count),
-                label_text="Serving")
-            self.serving_lbl = val_lbl
-            stepper_wrap.add_widget(stp)
-            root.add_widget(stepper_wrap)
-        else:
-            hint = BoxLayout(size_hint_y=None, height=42,
-                             padding=[14, 6])
-            inner = BoxLayout()
-            fill_rounded(inner, TH.card2, radius=10)
-            inner.add_widget(Label(
-                text="Edit values below, then tap SAVE",
-                font_size=TH.fs_small, color=TH.primary,
-                halign="center", valign="middle"))
-            hint.add_widget(inner)
-            root.add_widget(hint)
+        stp, val_lbl = stepper(
+            value_text=f"x {self.serving_count}",
+            on_minus=lambda: update_serving(-1),
+            on_plus=lambda: update_serving(1),
+            on_reset=lambda: update_serving(1 - self.serving_count),
+            label_text="Serving")
+        self.serving_lbl = val_lbl
+        stepper_wrap.add_widget(stp)
+        root.add_widget(stepper_wrap)
 
         # ── Scrollable content ──────────────────────────────────────────
         scroll = ScrollView(bar_width=2)
@@ -190,188 +168,41 @@ class RecipeScreen(Screen):
         self.content_layout.bind(
             minimum_height=self.content_layout.setter("height"))
 
-        if self.edit_mode:
-            self._render_edit(recipe)
-        else:
-            self._render_content(recipe)
+        self._render_content(recipe)
 
         scroll.add_widget(self.content_layout)
         root.add_widget(scroll)
         self.add_widget(root)
 
-    # ── Edit mode ────────────────────────────────────────────────────────────
-    def _enter_edit(self):
-        self.edit_mode = True
-        self._build(self.cat_id, self.recipe_id)
+    def _open_edit_form(self):
+        data = recipes_svc.all_data()
+        recipe = recipes_svc.find_recipe(data, self.cat_id, self.recipe_id)
+        if recipe is None:
+            return
 
-    def _cancel_edit(self):
-        self.edit_mode = False
-        self._build(self.cat_id, self.recipe_id)
+        def after():
+            data2 = recipes_svc.all_data()
+            still = recipes_svc.find_recipe(data2, self.cat_id, self.recipe_id)
+            if still is None:
+                # Recipe was deleted
+                if self.manager:
+                    self.manager.transition.direction = "right"
+                    self.manager.get_screen("category").load(self.cat_id)
+                    self.manager.current = "category"
+            else:
+                self._build(self.cat_id, self.recipe_id)
 
-    def _render_edit(self, recipe):
-        self._edit_widgets = {}
-
-        # Parameters
-        if "parameters" in recipe:
-            self.content_layout.add_widget(make_label(
-                "PARAMETERS  (name  |  amount  |  unit)",
-                font_size=TH.fs_small, color=TH.primary,
-                bold=True, height=28))
-            self.content_layout.add_widget(divider())
-
-            self._edit_widgets["parameters"] = []
-            for p in recipe["parameters"]:
-                row = BoxLayout(size_hint_y=None, height=48,
-                                spacing=6, padding=[2, 4])
-
-                name_in = TextInput(
-                    text=p["name"], multiline=False,
-                    font_size=TH.fs_small,
-                    background_color=TH.input_bg,
-                    foreground_color=TH.text_main,
-                    cursor_color=TH.primary,
-                    size_hint_x=0.44,
-                    size_hint_y=None, height=40)
-
-                amt_str = (str(int(p["amount"]))
-                           if p["amount"] == int(p["amount"])
-                           else str(p["amount"]))
-                amt_in = TextInput(
-                    text=amt_str, multiline=False,
-                    font_size=TH.fs_normal,
-                    background_color=TH.input_bg,
-                    foreground_color=TH.primary,
-                    cursor_color=TH.primary,
-                    size_hint_x=0.26,
-                    size_hint_y=None, height=40)
-
-                unit_in = TextInput(
-                    text=p["unit"], multiline=False,
-                    font_size=TH.fs_small,
-                    background_color=TH.input_bg,
-                    foreground_color=TH.text_main,
-                    cursor_color=TH.primary,
-                    size_hint_x=0.30,
-                    size_hint_y=None, height=40)
-
-                row.add_widget(name_in)
-                row.add_widget(amt_in)
-                row.add_widget(unit_in)
-                self.content_layout.add_widget(row)
-                self.content_layout.add_widget(divider())
-                self._edit_widgets["parameters"].append(
-                    (name_in, amt_in, unit_in))
-
-        # Steps
-        if "steps" in recipe:
-            self.content_layout.add_widget(
-                BoxLayout(size_hint_y=None, height=8))
-            self.content_layout.add_widget(make_label(
-                "STEPS", font_size=TH.fs_small,
-                color=TH.primary, bold=True, height=28))
-            self.content_layout.add_widget(divider())
-
-            self._edit_widgets["steps"] = []
-            for i, step in enumerate(recipe["steps"], 1):
-                row = BoxLayout(
-                    size_hint_y=None, height=72,
-                    spacing=8, padding=[2, 4])
-
-                num_lbl = Label(
-                    text=str(i), font_size=12, bold=True,
-                    color=TH.gold_text,
-                    size_hint=(None, None), size=(28, 40))
-                with num_lbl.canvas.before:
-                    Color(*TH.primary)
-                    RoundedRectangle(pos=num_lbl.pos,
-                                     size=num_lbl.size, radius=[14])
-                num_lbl.bind(
-                    pos=lambda w, v: self._redraw_circle(w),
-                    size=lambda w, v: self._redraw_circle(w))
-
-                step_in = TextInput(
-                    text=step, multiline=True,
-                    font_size=TH.fs_small,
-                    background_color=TH.input_bg,
-                    foreground_color=TH.text_main,
-                    cursor_color=TH.primary,
-                    size_hint_y=None, height=64)
-
-                row.add_widget(num_lbl)
-                row.add_widget(step_in)
-                self.content_layout.add_widget(row)
-                self._edit_widgets["steps"].append(step_in)
-
-        # Cancel button
-        self.content_layout.add_widget(
-            BoxLayout(size_hint_y=None, height=12))
-        cancel_btn = ghost_btn("Cancel", height=44)
-        cancel_btn.bind(on_press=lambda x: self._cancel_edit())
-        self.content_layout.add_widget(cancel_btn)
-
-    def _save_edits(self, recipe):
-        data = load_data()
-        cat  = next(c for c in data["categories"]
-                    if c["id"] == self.cat_id)
-        r    = next(rc for rc in cat["recipes"]
-                    if rc["id"] == self.recipe_id)
-
-        # Save parameters
-        if "parameters" in r and "parameters" in self._edit_widgets:
-            for idx, (name_in, amt_in, unit_in) in \
-                    enumerate(self._edit_widgets["parameters"]):
-                name = name_in.text.strip()
-                unit = unit_in.text.strip()
-                try:
-                    amt = float(amt_in.text.strip())
-                except ValueError:
-                    amt = r["parameters"][idx]["amount"]
-                if name:
-                    r["parameters"][idx]["name"]   = name
-                    r["parameters"][idx]["amount"] = amt
-                    r["parameters"][idx]["unit"]   = unit
-
-        # Save steps
-        if "steps" in r and "steps" in self._edit_widgets:
-            new_steps = [s.text.strip()
-                         for s in self._edit_widgets["steps"]
-                         if s.text.strip()]
-            if new_steps:
-                r["steps"] = new_steps
-
-        save_data(data)
-
-        # Success popup
-        content = BoxLayout(orientation="vertical", padding=16, spacing=10)
-        set_bg(content, TH.bg)
-        content.add_widget(gold_line(1))
-        content.add_widget(BoxLayout(size_hint_y=None, height=8))
-        content.add_widget(make_label(
-            "Saved successfully!",
-            color=TH.text_main, halign="center",
-            font_size=TH.fs_normal, height=44))
-        ok = gold_btn("OK", height=44)
-        content.add_widget(ok)
-        popup = Popup(title="", content=content,
-                      size_hint=(0.72, 0.28),
-                      background_color=TH.card,
-                      separator_height=0)
-        def _ok(*a):
-            popup.dismiss()
-            self.edit_mode = False
-            self._build(self.cat_id, self.recipe_id)
-        ok.bind(on_press=_ok)
-        popup.open()
+        show_recipe_form(self.cat_id, recipe=recipe, on_done=after)
 
     # ── View mode renders ────────────────────────────────────────────────────
     def _render_content(self, recipe):
         self.content_layout.clear_widgets()
         m = self.serving_count
-        if "variants" in recipe:
+        if recipe.get("variants"):
             self._render_variants_tab(recipe["variants"], m)
-        if "parameters" in recipe:
+        if recipe.get("parameters"):
             self._render_parameters(recipe["parameters"], m)
-        if "steps" in recipe:
+        if recipe.get("steps"):
             self._render_steps(recipe["steps"])
         self.content_layout.add_widget(spacer(8))
         self.content_layout.add_widget(make_label(

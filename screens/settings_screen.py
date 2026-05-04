@@ -127,7 +127,7 @@ class SettingsScreen(Screen):
         disp_card.add_widget(self._field_label(L["language"]))
         lang_row = BoxLayout(size_hint_y=None, height=44, spacing=8)
         cur_lang = load_lang()
-        for lang_name in ["English", "Myanmar", "Thai"]:
+        for lang_name in ["English", "Myanmar"]:
             is_sel = (cur_lang == lang_name)
             lb = self._segmented_btn(
                 lang_name, is_sel,
