@@ -1,4 +1,4 @@
-# Tea Recipe & SOP App - Flutter + Firebase PRD
+# ZinmeAPP - Flutter + Firebase PRD
 
 A mobile-first Flutter app with a Firebase backend for a tea / milk-tea shop.
 Staff use it during shop operations to prepare drinks, foods, bases, and other

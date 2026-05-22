@@ -1,4 +1,4 @@
-# Tea Recipe & SOP App - Flutter + Firebase System Architecture
+# ZinmeAPP - Flutter + Firebase System Architecture
 
 Companion to [PRD-flutter.md](./PRD-flutter.md).
 
