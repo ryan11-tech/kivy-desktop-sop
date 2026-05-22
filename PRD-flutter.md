@@ -1,9 +1,10 @@
 # Tea Recipe & SOP App - Flutter + Firebase PRD
 
 A mobile-first Flutter app with a Firebase backend for a tea / milk-tea shop.
-Staff use it during shop operations to prepare drinks from recipes and follow
-opening, closing, and operational SOPs. Admins maintain the content catalog and
-control which Gmail/email accounts can access the shop.
+Staff use it during shop operations to prepare drinks, foods, bases, and other
+items from recipes, and to follow opening, closing, and operational SOPs.
+Admins maintain the content catalog and control which Gmail/email accounts can
+access the shop.
 
 This PRD is the source of truth for the new Flutter build. It does not depend
 on the existing Kivy codebase or JSON schema.
@@ -24,7 +25,8 @@ on the existing Kivy codebase or JSON schema.
 - Support draft/published content so admins can prepare changes before staff
   see them.
 - Provide two main content types:
-  - `recipe`: drink preparation content with Hot and Cold variants.
+  - `recipe`: saved preparation instructions for drinks, foods, and other
+    shop items.
   - `sop`: operational procedures such as opening, closing, cleaning, or
     end-of-day tasks.
 - Let admins create and maintain categories, recipes, SOPs, images, and user
@@ -203,8 +205,8 @@ The app has two main content item types.
 
 | Type | Meaning | Main use |
 |------|---------|----------|
-| `recipe` | Drink preparation content | Hot/Cold drink instructions and quantities |
-| `sop` | Standard operating procedure | Opening, closing, cleaning, prep, shutdown |
+| `recipe` | Preparation content | Drinks, foods, toppings, sauces, bases, and other shop items |
+| `sop` | Standard operating procedure | Opening, closing, cleaning, prep, shutdown, maintenance, inventory |
 
 The app uses `recipe` as the stable data enum and "Recipe" as the user-facing
 label.
@@ -227,16 +229,54 @@ Rules:
 
 ### 5.4 Recipe
 
-A recipe is a drink-preparation item.
+A recipe is saved preparation content for anything the shop makes or prepares.
+Recipes are not limited to drinks.
+
+Built-in recipe types:
+
+- `drink`
+- `food`
+- `base`
+- `topping`
+- `sauce`
+- `other`
+
+Admins can add more recipe types later. Store recipe types as stable lowercase
+keys so future custom types do not require a schema migration.
 
 Requirements:
 
-- A recipe has exactly two variants: `hot` and `cold`.
-- Hot and Cold can have different parameters.
-- Hot and Cold can have different steps.
-- Each variant must contain at least one parameter or one step.
+- A recipe has a required `recipeType`.
+- A recipe may have base-level parameters and steps.
+- A recipe may also have one or more named variants.
+- Drink recipes default to two variants: `hot` and `cold`.
+- Hot and Cold drink variants can have different parameters and different
+  steps.
+- Food and other recipes may use only base parameters/steps, or may define
+  variants if needed.
+- Each recipe must contain at least one parameter or one step across its base
+  content or variants.
 - Recipe quantities support a live servings multiplier from `x1` to `x99`.
-- The multiplier applies only to the selected variant's parameters.
+- The multiplier applies to the visible recipe parameters for the selected
+  base content or variant.
+
+Recipe variant shape:
+
+```jsonc
+{
+  "key": "hot",
+  "name": "Hot",
+  "parameters": [
+    { "name": "Tea Base", "amount": 150, "unit": "ml" },
+    { "name": "Milk", "amount": 40, "unit": "ml" }
+  ],
+  "steps": [
+    "Warm the cup.",
+    "Add tea base and milk.",
+    "Stir until even."
+  ]
+}
+```
 
 Recipe shape:
 
@@ -250,29 +290,38 @@ Recipe shape:
   "imagePath": "shops/main/items/abc.jpg",
   "notes": "",
   "recipe": {
-    "hot": {
-      "parameters": [
-        { "name": "Tea Base", "amount": 150, "unit": "ml" },
-        { "name": "Milk", "amount": 40, "unit": "ml" }
-      ],
-      "steps": [
-        "Warm the cup.",
-        "Add tea base and milk.",
-        "Stir until even."
-      ]
-    },
-    "cold": {
-      "parameters": [
-        { "name": "Tea Base", "amount": 180, "unit": "ml" },
-        { "name": "Milk", "amount": 35, "unit": "ml" },
-        { "name": "Ice", "amount": 1, "unit": "cup" }
-      ],
-      "steps": [
-        "Fill shaker with ice.",
-        "Add tea base and milk.",
-        "Shake and serve."
-      ]
-    }
+    "recipeType": "drink",
+    "parameters": [],
+    "steps": [],
+    "variants": [
+      {
+        "key": "hot",
+        "name": "Hot",
+        "parameters": [
+          { "name": "Tea Base", "amount": 150, "unit": "ml" },
+          { "name": "Milk", "amount": 40, "unit": "ml" }
+        ],
+        "steps": [
+          "Warm the cup.",
+          "Add tea base and milk.",
+          "Stir until even."
+        ]
+      },
+      {
+        "key": "cold",
+        "name": "Cold",
+        "parameters": [
+          { "name": "Tea Base", "amount": 180, "unit": "ml" },
+          { "name": "Milk", "amount": 35, "unit": "ml" },
+          { "name": "Ice", "amount": 1, "unit": "cup" }
+        ],
+        "steps": [
+          "Fill shaker with ice.",
+          "Add tea base and milk.",
+          "Shake and serve."
+        ]
+      }
+    ]
   }
 }
 ```
@@ -291,20 +340,27 @@ Examples:
 
 Requirements:
 
+- An SOP has a required `sopType` for filtering and grouping.
 - An SOP has one parameter list.
 - An SOP has one ordered step list.
-- An SOP has a subtype for filtering and grouping.
 - SOP parameters are fixed values by default.
 - The servings multiplier does not apply to SOPs in v1.
 - Each SOP must contain at least one parameter or one step.
 
-Allowed SOP subtypes:
+Built-in SOP types:
 
 - `opening`
 - `closing`
 - `cleaning`
 - `prep`
+- `maintenance`
+- `inventory`
+- `safety`
+- `training`
 - `other`
+
+Admins can add more SOP types later. Store SOP types as stable lowercase keys
+so future custom types do not require a schema migration.
 
 SOP shape:
 
@@ -318,7 +374,7 @@ SOP shape:
   "imagePath": "",
   "notes": "",
   "sop": {
-    "subtype": "closing",
+    "sopType": "closing",
     "parameters": [
       { "name": "Sanitizer", "amount": 20, "unit": "ml" },
       { "name": "Checklist Time", "amount": 10, "unit": "min" }
@@ -397,7 +453,8 @@ Content search must support:
 - content name
 - category name
 - content type: Recipe or SOP
-- SOP subtype
+- recipe type
+- SOP type
 - parameter name
 - step text
 - notes
@@ -431,19 +488,21 @@ content. Staff search results must include only `published` content.
 ### 6.6 Recipe detail screen
 
 - Shows category breadcrumb and recipe name.
+- Shows recipe type.
 - Shows image if available.
-- Shows Hot/Cold pill tabs.
+- If the recipe has variants, shows variant tabs. Drink recipes default to
+  Hot/Cold tabs.
 - Shows servings stepper from `x1` to `x99`, with reset to `x1`.
-- Selected variant shows:
+- Selected base content or variant shows:
   - parameter table with scaled quantities
-  - ordered steps for that variant
+  - ordered steps for that base content or variant
 - Favorite toggle is available to staff and admins.
 - Admin-only edit action.
 
 ### 6.7 SOP detail screen
 
 - Shows category breadcrumb and SOP name.
-- Shows SOP subtype.
+- Shows SOP type.
 - Shows image if available.
 - Shows parameter table.
 - Shows ordered steps.
@@ -466,14 +525,16 @@ Required fields:
 
 Recipe fields:
 
-- Hot parameters.
-- Hot steps.
-- Cold parameters.
-- Cold steps.
+- Recipe type.
+- Base parameters.
+- Base steps.
+- Variants. Drink recipes default to Hot and Cold variants.
+- Variant parameters.
+- Variant steps.
 
 SOP fields:
 
-- SOP subtype.
+- SOP type.
 - Parameters.
 - Steps.
 
@@ -486,10 +547,13 @@ Validation:
 
 - Name is required.
 - Category is required.
-- Recipe must have Hot and Cold objects.
-- Each Recipe variant must contain at least one parameter or one step.
+- Recipe type is required.
+- Recipe must contain at least one parameter or one step across base content or
+  variants.
+- Drink recipes must include Hot and Cold variants.
+- Each populated recipe variant must contain at least one parameter or one step.
 - SOP must contain at least one parameter or one step.
-- SOP subtype is required.
+- SOP type is required.
 - Amounts must parse as numbers.
 - Draft items are visible to admins only.
 - Published items are visible to staff and admins.
@@ -673,17 +737,26 @@ One collection stores both recipes and SOPs.
   "imagePath": "shops/main/items/itemId.jpg",
   "notes": "",
   "recipe": {
-    "hot": {
-      "parameters": [],
-      "steps": []
-    },
-    "cold": {
-      "parameters": [],
-      "steps": []
-    }
+    "recipeType": "drink",
+    "parameters": [],
+    "steps": [],
+    "variants": [
+      {
+        "key": "hot",
+        "name": "Hot",
+        "parameters": [],
+        "steps": []
+      },
+      {
+        "key": "cold",
+        "name": "Cold",
+        "parameters": [],
+        "steps": []
+      }
+    ]
   },
   "sop": {
-    "subtype": "other",
+    "sopType": "other",
     "parameters": [],
     "steps": []
   },
@@ -704,9 +777,12 @@ Shape rules:
 - `status` is `draft` or `published`.
 - Staff can read only published items.
 - Admins can read draft and published items.
-- For `recipe`, use `recipe.hot` and `recipe.cold`.
+- For `recipe`, use `recipe.recipeType`, `recipe.parameters`,
+  `recipe.steps`, and `recipe.variants`.
 - For `sop`, use `sop.parameters` and `sop.steps`.
-- For `sop`, use `sop.subtype` for filtering.
+- For `sop`, use `sop.sopType` for filtering.
+- Built-in and custom recipe/SOP type keys are stored as lowercase stable
+  strings.
 - Unused sections are stored as empty arrays.
 - `amount` is a double.
 - Render amounts as integers when possible.
@@ -729,7 +805,9 @@ Shape rules:
   "primaryColor": "#8B0000",
   "backgroundColor": "#0A0A0A",
   "surfaceColor": "#141414",
-  "languages": ["English", "Myanmar"]
+  "languages": ["English", "Myanmar"],
+  "recipeTypes": ["drink", "food", "base", "topping", "sauce", "other"],
+  "sopTypes": ["opening", "closing", "cleaning", "prep", "maintenance", "inventory", "safety", "training", "other"]
 }
 ```
 
@@ -869,7 +947,8 @@ Minimum tests:
 - Unit tests for draft/published visibility rules in repositories.
 - Unit tests for search matching.
 - Widget tests for login/register/no-access flows.
-- Widget tests for recipe detail Hot/Cold behavior.
+- Widget tests for recipe detail base/variant behavior.
+- Widget tests for recipe type and SOP type filtering.
 - Widget tests for SOP detail behavior.
 - Widget tests for admin content form validation.
 - Emulator security-rules tests:
@@ -893,13 +972,16 @@ Minimum tests:
 - After 5 failed PIN attempts, quick unlock requires email/password sign-in.
 - Favorites are stored per user and persist across devices.
 - An admin can create a category.
-- An admin can create a draft recipe with different Hot and Cold parameters
-  and steps.
+- An admin can create a draft drink recipe with different Hot and Cold
+  parameters and steps.
+- An admin can create a food recipe with base parameters and steps.
+- An admin can create an other-type recipe or custom recipe type.
 - Draft content is visible to admins only.
 - Published content is visible to staff.
-- A staff user can open a recipe, switch Hot/Cold, and scale quantities to
-  `x3`.
-- An admin can create an SOP with subtype, parameters, and steps.
+- A staff user can open a drink recipe, switch Hot/Cold, and scale quantities
+  to `x3`.
+- A staff user can open a food recipe and scale quantities to `x3`.
+- An admin can create an SOP with SOP type, parameters, and steps.
 - A staff user can open an SOP and follow its steps.
 - Search works on Home, Category, Favorites, admin content management, and
   admin user management screens.
