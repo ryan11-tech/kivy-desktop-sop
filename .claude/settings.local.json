@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip --version)",
+      "Bash(pip install *)",
+      "Bash(python main.py)",
+      "Bash(git rm *)",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"import os; print\\(os.path.exists\\('assets/fa-solid-900.ttf'\\)\\)\")",
+      "Bash(tasklist /FI \"IMAGENAME eq python.exe\")"
+    ]
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "week_start": "",
+  "shifts": [
+    {
+      "id": "morning_shift",
+      "name": "Morning Shift",
+      "start_time": "09:00",
+      "end_time": "06:00",
+      "color": "#C9A84C"
+    },
+    {
+      "id": "evening_shift",
+      "name": "Evening  Shift",
+      "start_time": "04:00",
+      "end_time": "06:00",
+      "color": "#C9A84C"
+    }
+  ],
+  "staff": [
+    {
+      "id": "staff_001",
+      "name": "Staff A"
+    },
+    {
+      "id": "staff_staff_b",
+      "name": "Staff B"
+    }
+  ],
+  "schedule": {
+    "Mon": [],
+    "Tue": [],
+    "Wed": [],
+    "Thu": [
+      {
+        "shift_id": "morning_shift",
+        "staff": [
+          "staff_staff_b"
+        ]
+      }
+    ],
+    "Fri": [],
+    "Sat": [],
+    "Sun": [
+      {
+        "shift_id": "morning_shift",
+        "staff": [
+          "staff_001"
+        ]
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "id": "task_test",
+      "name": "Test",
+      "days": [
+        "Mon"
+      ],
+      "assigned_staff": [
+        "staff_001"
+      ]
+    }
+  ]
+}
