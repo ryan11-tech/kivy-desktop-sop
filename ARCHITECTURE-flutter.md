@@ -1,5 +1,7 @@
 # Tea Recipe & SOP App - Flutter + Firebase System Architecture
 
+# ZinmeAPP - Flutter + Firebase System Architecture
+
 Companion to [PRD-flutter.md](./PRD-flutter.md).
 
 This architecture matches the revised Flutter direction:
@@ -10,6 +12,9 @@ This architecture matches the revised Flutter direction:
 - Per-user local PIN unlock with default first-time PIN `2222`.
 - Draft/published content visibility.
 - Recipe and SOP content types.
+- Recipe and SOP content types, with flexible `recipeType` and `sopType`
+  metadata.
+
 - No offline mode in v1.
 
 ---
@@ -219,7 +224,11 @@ sequenceDiagram
 
 `contentType` determines whether the UI reads the `recipe` or `sop` section.
 Staff listeners only receive published items. Admin listeners can include draft
-and published items.
+and published items
+
+Within those sections, `recipe.recipeType` and `sop.sopType` drive filtering,
+form behavior, and detail-screen layout. Staff listeners only receive
+published items. Admin listeners can include draft and published items.
 
 ---
 
