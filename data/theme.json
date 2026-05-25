@@ -1,7 +1,7 @@
 {
   "primary": "#8B0000",
-  "bg": "#0A0A0A",
-  "card": "#141414",
+  "bg": "#F5F5F5",
+  "card": "#E8E8E8",
   "font_size": "Small",
-  "mode": "Dark"
+  "mode": "Light"
 }

@@ -2,5 +2,5 @@
   "pin": "2222",
   "admin_pin": "1234",
   "enabled": true,
-  "mode": "Staff"
+  "mode": "Admin"
 }
