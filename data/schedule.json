@@ -27,7 +27,12 @@
     }
   ],
   "schedule": {
-    "Mon": [],
+    "Mon": [
+      {
+        "shift_id": "morning_shift",
+        "staff": []
+      }
+    ],
     "Tue": [],
     "Wed": [],
     "Thu": [
@@ -51,8 +56,8 @@
   },
   "tasks": [
     {
-      "id": "task_test",
-      "name": "Test",
+      "id": "task_deep_clean",
+      "name": "Deep Clean",
       "days": [
         "Mon"
       ],
