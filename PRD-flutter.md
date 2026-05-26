@@ -1,10 +1,10 @@
-# ZinmeAPP - Flutter + Firebase PRD
+# ZinmeAPP - Flutter + Backend API PRD
 
-A mobile-first Flutter app with a Firebase backend for a tea / milk-tea shop.
-Staff use it during shop operations to prepare drinks, foods, bases, and other
-items from recipes, and to follow opening, closing, and operational SOPs.
-Admins maintain the content catalog and control which Gmail/email accounts can
-access the shop.
+A mobile-first Flutter app that uses the Zin Mae backend API for a tea /
+milk-tea shop. Staff use it during shop operations to prepare drinks, foods,
+bases, and other items from recipes, and to follow opening, closing, and
+operational SOPs. Admins maintain the content catalog and control which
+Gmail/email accounts can access the shop.
 
 This PRD is the source of truth for the new Flutter build. It does not depend
 on the existing Kivy codebase or JSON schema.
@@ -15,8 +15,8 @@ on the existing Kivy codebase or JSON schema.
 
 - Build a new Flutter app for Android and iOS, optimized for phone-sized and
   tablet portrait use.
-- Store all app data in Firebase: Auth, Firestore, Storage, and Cloud
-  Functions.
+- Store all app data in the Zin Mae backend: API auth, PostgreSQL data, and
+  backend-managed media storage.
 - Support user registration with Gmail/email accounts.
 - Require admin approval before any registered user can see shop content.
 - Let each active user set their own personal app PIN for quick unlock on the
@@ -42,7 +42,8 @@ on the existing Kivy codebase or JSON schema.
 - No offline mode in v1. If there is no connection, show a no-connection state.
 - No POS integration, order tracking, sales analytics, printing, or PDF export.
 - No web build in v1.
-- No multi-shop UI in v1, though the Firestore schema should allow it later.
+- No multi-shop UI in v1, though the backend schema and API should allow it
+  later.
 
 ---
 
@@ -101,8 +102,9 @@ There is no guest role. Every user must authenticate first.
 
 ### 4.2 Registration
 
-- Users register with a Gmail/email address and password through Firebase Auth.
-- After registration, the app creates or updates a user profile.
+- Users register with a Gmail/email address and password through the backend
+  auth API.
+- After registration, the backend creates or updates a user profile.
 - New users default to `role = none` and `accessStatus = pending`.
 - A pending user sees only a no-access screen:
   - no categories
@@ -119,13 +121,13 @@ For the first prototype, one or more admin Gmail/email addresses may be
 hard-coded in app/backend configuration.
 
 Important rule: client-side hardcoding is only for routing and prototype
-convenience. Real authorization must still come from Firebase Auth custom
-claims and Firestore/Storage security rules.
+convenience. Real authorization must still come from the backend session,
+database permissions, and server-side route checks.
 
 Bootstrap behavior:
 
 - If a registered user's normalized email matches the bootstrap admin list, a
-  Cloud Function or admin seed script grants `role = admin`.
+  backend bootstrap flow or admin seed script grants `role = admin`.
 - After bootstrap, that admin can assign `staff` or `admin` access to other
   Gmail/email accounts.
 - Before production, move bootstrap admin emails to environment configuration
@@ -160,11 +162,11 @@ PIN behavior:
 - After the user's first active login, if no personal PIN exists on the device,
   the app asks whether they want to change the default PIN now or keep `2222`
   for now.
-- It is used for quick unlock when the Firebase session is still valid.
-- It does not replace Firebase Auth.
-- PIN unlock is not login. It cannot create a Firebase session, refresh expired
+- It is used for quick unlock when the backend API session is still valid.
+- It does not replace backend authentication.
+- PIN unlock is not login. It cannot create a backend session, refresh expired
   credentials, or bypass server-side permission checks.
-- If the user signs out, clears app data, changes device, or the Firebase
+- If the user signs out, clears app data, changes device, or the backend
   session expires, they must sign in again with email/password.
 - PIN storage should use secure local storage and never be stored in plaintext.
 - Admins cannot see a user's PIN.
@@ -225,7 +227,7 @@ Rules:
 - `amount` is a number.
 - `unit` is a short string such as `ml`, `g`, `pcs`, `spoon`, or `min`.
 - For recipes, amounts are stored as the per-1-serving value.
-- Recipe scaling is a view concern. Firestore never stores scaled amounts.
+- Recipe scaling is a view concern. The backend never stores scaled amounts.
 
 ### 5.4 Recipe
 
@@ -581,9 +583,9 @@ Admin-only.
 
 - Favorites are per user.
 - Staff and admins can favorite recipes and SOPs.
-- Favorites are stored by `uid`.
+- Favorites are stored by authenticated user id.
 - A user's favorites persist across devices because they are stored in
-  Firestore.
+  the backend database.
 - If an item is deleted, it should disappear from favorites.
 - Staff favorites show only published items.
 
@@ -605,7 +607,7 @@ Admin settings:
 - Category/content management shortcuts.
 
 Settings that affect only the current device use local storage. Settings that
-affect shop behavior use Firestore.
+affect shop behavior use the backend database.
 
 ### 6.12 Connectivity
 
@@ -617,61 +619,71 @@ Requirements:
 - Show a clear no-connection screen or blocking banner.
 - Do not promise stale cached content is valid.
 - Writes require connection.
-- Login/register/access refresh require connection.
+- Login/register/session/access refresh require connection.
 
 Recommended dependency: `connectivity_plus`.
 
 ---
 
-## 7. Firestore data model
+## 7. Backend data model
 
-Use a fresh schema. Do not migrate the Kivy JSON structure.
+Use a fresh backend schema. Do not migrate the Kivy JSON structure.
 
-The schema should include `/shops/{shopId}` from the start even though v1 only
-uses one shop. This avoids a painful migration later.
+The schema should include shops from the start even though v1 only uses one
+shop. This avoids a painful migration later. The backend is the source of
+truth, and the mobile app reads and writes through authenticated API requests.
 
-### 7.1 Data tree
+### 7.1 Backend resources
 
 ```text
-/users/{uid}
-/shops/{shopId}
-/shops/{shopId}/members/{uid}
-/shops/{shopId}/memberGrants/{emailKey}
-/shops/{shopId}/categories/{categoryId}
-/shops/{shopId}/items/{itemId}
-/shops/{shopId}/favorites/{uid}
-/shops/{shopId}/appConfig/global
+users
+profiles
+shops
+shop_members
+member_grants
+categories
+items
+favorites
+app_config
+media_assets
 ```
 
-### 7.2 `users/{uid}`
+The exact physical schema may be normalized for PostgreSQL, but API responses
+should keep stable mobile-friendly shapes so the Flutter app can use typed
+models.
+
+### 7.2 User profile
 
 Global auth profile.
 
 ```jsonc
 {
+  "id": "userId",
   "email": "staff@gmail.com",
   "normalizedEmail": "staff@gmail.com",
   "displayName": "Staff Name",
-  "createdAt": "<Timestamp>",
-  "lastSeenAt": "<Timestamp>"
+  "createdAt": "<ISO timestamp>",
+  "lastSeenAt": "<ISO timestamp>"
 }
 ```
 
-### 7.3 `shops/{shopId}/members/{uid}`
+### 7.3 Shop member
 
 Shop-specific permission.
 
 ```jsonc
 {
-  "uid": "firebaseUid",
+  "id": "memberId",
+  "shopId": "main",
+  "userId": "userId",
   "email": "staff@gmail.com",
   "normalizedEmail": "staff@gmail.com",
   "role": "staff",
   "accessStatus": "active",
-  "createdAt": "<Timestamp>",
-  "updatedAt": "<Timestamp>",
-  "createdBy": "<uid>",
-  "updatedBy": "<uid>"
+  "createdAt": "<ISO timestamp>",
+  "updatedAt": "<ISO timestamp>",
+  "createdBy": "adminUserId",
+  "updatedBy": "adminUserId"
 }
 ```
 
@@ -687,47 +699,54 @@ Allowed access statuses:
 - `active`
 - `disabled`
 
-### 7.4 `shops/{shopId}/memberGrants/{emailKey}`
+### 7.4 Member grant
 
 Admin-created access by Gmail/email address. This allows admins to grant access
 before or after the user registers.
 
 ```jsonc
 {
+  "id": "grantId",
+  "shopId": "main",
   "email": "staff@gmail.com",
   "normalizedEmail": "staff@gmail.com",
+  "emailKey": "staff@gmail.com",
   "role": "staff",
   "accessStatus": "active",
-  "createdAt": "<Timestamp>",
-  "updatedAt": "<Timestamp>",
-  "createdBy": "<uid>",
-  "updatedBy": "<uid>"
+  "createdAt": "<ISO timestamp>",
+  "updatedAt": "<ISO timestamp>",
+  "createdBy": "adminUserId",
+  "updatedBy": "adminUserId"
 }
 ```
 
 `emailKey` is a safe deterministic key based on the normalized email. Use a
-hash if needed to avoid invalid Firestore document characters.
+hash if needed to keep keys short and stable.
 
-### 7.5 `shops/{shopId}/categories/{categoryId}`
+### 7.5 Category
 
 ```jsonc
 {
+  "id": "milk_tea",
+  "shopId": "main",
   "name": "Milk Tea",
   "icon": "T",
   "order": 10,
-  "createdAt": "<Timestamp>",
-  "updatedAt": "<Timestamp>",
-  "createdBy": "<uid>",
-  "updatedBy": "<uid>"
+  "createdAt": "<ISO timestamp>",
+  "updatedAt": "<ISO timestamp>",
+  "createdBy": "adminUserId",
+  "updatedBy": "adminUserId"
 }
 ```
 
-### 7.6 `shops/{shopId}/items/{itemId}`
+### 7.6 Content item
 
-One collection stores both recipes and SOPs.
+One backend resource stores both recipes and SOPs.
 
 ```jsonc
 {
+  "id": "itemId",
+  "shopId": "main",
   "contentType": "recipe",
   "status": "published",
   "categoryId": "milk_tea",
@@ -761,12 +780,12 @@ One collection stores both recipes and SOPs.
     "steps": []
   },
   "order": 0,
-  "publishedAt": "<Timestamp>",
-  "publishedBy": "<uid>",
-  "createdAt": "<Timestamp>",
-  "updatedAt": "<Timestamp>",
-  "createdBy": "<uid>",
-  "updatedBy": "<uid>"
+  "publishedAt": "<ISO timestamp>",
+  "publishedBy": "adminUserId",
+  "createdAt": "<ISO timestamp>",
+  "updatedAt": "<ISO timestamp>",
+  "createdBy": "adminUserId",
+  "updatedBy": "adminUserId"
 }
 ```
 
@@ -775,8 +794,8 @@ Shape rules:
 - `contentType` is the discriminator. UI must read it.
 - `recipe` and `sop` objects are always present for schema stability.
 - `status` is `draft` or `published`.
-- Staff can read only published items.
-- Admins can read draft and published items.
+- Staff API responses include only published items.
+- Admin API responses can include draft and published items.
 - For `recipe`, use `recipe.recipeType`, `recipe.parameters`,
   `recipe.steps`, and `recipe.variants`.
 - For `sop`, use `sop.parameters` and `sop.steps`.
@@ -787,19 +806,22 @@ Shape rules:
 - `amount` is a double.
 - Render amounts as integers when possible.
 
-### 7.7 `shops/{shopId}/favorites/{uid}`
+### 7.7 Favorites
 
 ```jsonc
 {
+  "userId": "userId",
+  "shopId": "main",
   "itemIds": ["itemId1", "itemId2"],
-  "updatedAt": "<Timestamp>"
+  "updatedAt": "<ISO timestamp>"
 }
 ```
 
-### 7.8 `shops/{shopId}/appConfig/global`
+### 7.8 App config
 
 ```jsonc
 {
+  "shopId": "main",
   "schemaVersion": 1,
   "defaultThemeMode": "dark",
   "primaryColor": "#8B0000",
@@ -813,52 +835,48 @@ Shape rules:
 
 ---
 
-## 8. Security rules requirements
+## 8. Authorization requirements
 
-Security rules must enforce access. The client UI is not trusted.
+The backend API must enforce access. The client UI is not trusted.
 
 Rules:
 
-- Signed-out users can read/write nothing.
+- Signed-out users can only use public auth and health endpoints.
 - Pending users can read only their own basic profile and permission state.
 - Users without active shop permission cannot read categories, items, images,
   favorites, or app config.
-- Active staff can read categories, items, app config, and their own favorites.
-- Active staff can read only published items.
-- Active staff can write only their own favorites.
+- Active staff can read categories, app config, published items, and their own
+  favorites.
+- Active staff can write only their own favorites and device-independent user
+  preferences explicitly allowed by the backend.
 - Active admins can manage categories, items, app config, member grants, and
   members.
-- Only active admins can upload or delete item images.
-- Disabled users lose all shop data access after token refresh.
+- Only active admins can upload, replace, or delete item images.
+- Disabled users lose all shop data access on their next API request or session
+  refresh.
+- API responses must be filtered by role and access status before data reaches
+  the mobile app.
 
-Auth custom claims should include:
-
-```json
-{
-  "shopId": "main",
-  "role": "staff",
-  "accessStatus": "active"
-}
-```
-
-The app must force-refresh the ID token after registration, access assignment,
-role changes, and sign-in.
+The app must refresh session and permission state after registration, access
+assignment, role changes, sign-in, and explicit refresh actions.
 
 ---
 
-## 9. Cloud Functions
+## 9. Backend API responsibilities
 
-| Function | Trigger | Purpose |
-|----------|---------|---------|
-| `onAuthUserCreate` | Firebase Auth user created | Create user profile, check bootstrap admin emails, check member grants, create member record if needed. |
-| `assignMemberByEmail` | HTTPS callable, admin-only | Grant or update access for a Gmail/email address. |
-| `disableMember` | HTTPS callable, admin-only | Disable a user's shop access. |
-| `onMemberWrite` | Firestore member write | Sync role/shop/access status into Auth custom claims. |
-| `onCategoryDelete` | Firestore category delete | Permanently delete related items and their Storage images. |
-| `onItemDelete` | Firestore item delete | Delete the item's Storage image if present. |
-| `onItemWrite` | Firestore item write | Maintain search keywords and audit fields if not handled client-side. |
+| Area | Purpose |
+|------|---------|
+| Auth | Register, sign in, sign out, refresh/check session, and return the current authenticated user. |
+| Profile | Create profile records after registration and expose current profile data. |
+| Access | Check bootstrap admin emails, apply member grants, assign roles, disable users, and return current shop permission. |
+| Categories | List categories for active users and manage categories for admins. |
+| Items | List published items for staff, list draft/published items for admins, and create/update/delete content for admins. |
+| Favorites | Read and update the authenticated user's favorite item ids. |
+| Media | Accept admin image uploads and return stable image URLs for mobile rendering. |
+| Search | Support local in-memory search in v1; backend search can be added when content volume requires it. |
+| Cleanup | Delete related items and media when an admin deletes a category or item. |
 
-No shared staff PIN verification function is needed in this version.
+No shared staff PIN verification endpoint is needed in this version.
 
 ---
 
@@ -866,18 +884,21 @@ No shared staff PIN verification function is needed in this version.
 
 - Flutter stable channel.
 - Dart 3.x.
-- Firebase:
-  - `firebase_core`
-  - `firebase_auth`
-  - `cloud_firestore`
-  - `firebase_storage`
-  - `cloud_functions`
+- Backend API:
+  - Zin Mae `zin_mae` backend
+  - Hono API
+  - PostgreSQL
+  - Better Auth
+  - backend-managed media storage
+- HTTP API client: choose `http` or `dio` when implementing the API layer.
 - State management: Riverpod.
 - Routing: `go_router`.
 - Models: `freezed` + `json_serializable`, or hand-written serializers if the
   project wants less generated code.
 - Local device settings: `shared_preferences`.
 - Secure local PIN storage: `flutter_secure_storage`.
+- Secure API session storage: `flutter_secure_storage` if the mobile auth flow
+  uses bearer/session tokens instead of platform-managed cookies.
 - Connectivity state: `connectivity_plus`.
 - Image loading/cache: `cached_network_image`.
 - Lints: `flutter_lints`.
@@ -892,17 +913,20 @@ Do not mix Riverpod and Provider.
 lib/
   main.dart
   app.dart
-  firebase_options.dart
   theme/
     app_colors.dart
     app_theme.dart
   l10n/
   core/
+    api/
+      api_client.dart
+      api_error.dart
     auth/
       auth_controller.dart
+      auth_repository.dart
       access_controller.dart
       pin_lock_service.dart
-    firestore/
+    repositories/
       category_repository.dart
       item_repository.dart
       favorites_repository.dart
@@ -928,9 +952,9 @@ lib/
 
 Rules:
 
-- Screens do not call Firestore directly.
+- Screens do not call the backend API directly.
 - Screens use providers/controllers.
-- Repositories are the only client layer that knows Firebase collection paths.
+- Repositories are the only client layer that knows backend API paths.
 - Models own serialization and validation.
 - UI reads `contentType` and never infers item type from populated fields.
 
@@ -951,7 +975,7 @@ Minimum tests:
 - Widget tests for recipe type and SOP type filtering.
 - Widget tests for SOP detail behavior.
 - Widget tests for admin content form validation.
-- Emulator security-rules tests:
+- Backend integration and authorization tests:
   - no permission cannot read shop data
   - staff cannot write items/categories
   - staff can write own favorites
