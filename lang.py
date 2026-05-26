@@ -1,0 +1,212 @@
+from services import storage
+
+DEFAULT_LANG = "English"
+STRINGS = {
+    "English": {
+        # App
+        "app_title":        "Kitchen Guide",
+        "app_subtitle":     "Food & Beverage SOP",
+        # PIN
+        "pin_enter":        "Enter PIN to continue",
+        "pin_wrong":        "Wrong PIN. Try again.",
+        "pin_clr":          "CLR",
+        "pin_del":          "DEL",
+        # Home
+        "categories":       "CATEGORIES",
+        "search_hint":      "  Search recipe...",
+        "no_results":       "No results found.",
+        "favorites":        "Favorites",
+        "add_category":     "+ Add New Category",
+        "btn_edit":         "EDIT",
+        "btn_del":          "DEL",
+        "btn_menu":         "MENU",
+        "recipes_count":    "recipes",
+        # Category
+        "btn_back":         "< Back",
+        "add_recipe":       "+ Add New Recipe",
+        "btn_fav":          "FAV",
+        "btn_unfav":        "...",
+        "no_favorites": "No favorites yet. Tap FAV on a recipe to save it.",
+        "swipe_hint":   "Swipe left/right to toggle favorite",
+        "steps_count":      "steps",
+        "hot_preview":      "Hot: ",
+        # Recipe
+        "parameters":       "PARAMETERS",
+        "steps":            "STEPS",
+        "hot":              "HOT",
+        "iced":             "ICED",
+        "ingredient":       "INGREDIENT",
+        "qty":              "QTY",
+        "unit":             "UNIT",
+        "measure_note":     "Measure all ingredients accurately.",
+        "btn_share":        "SHARE",
+        "share_title":      "RECIPE TEXT",
+        "btn_close":        "Close",
+        # Settings
+        "settings":         "SETTINGS",
+        "display_mode":     "DISPLAY MODE",
+        "dark":             "DARK",
+        "light":            "LIGHT",
+        "primary_color":    "PRIMARY COLOR",
+        "quick_select":     "Quick Select:",
+        "dark_bg":          "Dark Backgrounds:",
+        "light_bg":         "Light Backgrounds:",
+        "bg_color":         "BACKGROUND COLOR",
+        "font_size":        "FONT SIZE",
+        "small":            "Small",
+        "medium":           "Medium",
+        "large":            "Large",
+        "language":         "LANGUAGE",
+        "save_apply":       "SAVE AND APPLY",
+        "reset_default":    "Reset to Default",
+        "theme_saved":      "Theme saved! Restart app to apply fully.",
+        "btn_ok":           "OK",
+        # Popups
+        "add_cat_title":    "Add Category",
+        "edit_cat_title":   "Edit Category",
+        "cat_name":         "Category Name:",
+        "cat_icon":         "Icon:",
+        "cat_hint": "e.g. Myanmar Milk Tea",
+        "icon_hint":        "e.g. T",
+        "btn_save":         "Save",
+        "btn_cancel":       "Cancel",
+        "confirm":          "Confirm",
+        "del_cat_msg":      "Delete this category?",
+        "del_recipe_msg":   "Delete this recipe?",
+        "btn_delete":       "Delete",
+        "add_recipe_title": "Add Recipe",
+        "edit_recipe_title":"Edit Recipe",
+        "recipe_name":      "Recipe Name:",
+        "recipe_hint":      "e.g. Myanmar Milk Tea",
+        "format":           "Format:",
+        "hot_ing":          "Hot Ingredients (name,amount,unit):",
+        "iced_ing":         "Iced Ingredients (name,amount,unit):",
+        "steps_label":      "Steps (one per line):",
+        "hot_and_iced":     "Hot and Iced",
+        "steps_only":       "Steps Only",
+        # PIN settings
+        "change_pin":       "CHANGE PIN",
+        "current_pin":      "Current PIN:",
+        "new_pin":          "New PIN:",
+        "confirm_pin":      "Confirm New PIN:",
+        "pin_changed":      "PIN changed successfully!",
+        "pin_wrong_cur":    "Current PIN is wrong.",
+        "pin_no_match":     "New PINs do not match.",
+        "pin_short":        "PIN must be at least 4 digits.",
+    },
+
+    "Myanmar": {
+        # App
+        "app_title":        "Kitchen Guide",
+        "app_subtitle":     "အစားအသောက် & အဖျော်ယမကာ SOP",
+        # PIN
+        "pin_enter":        "PIN ထည့်ပေးပါ",
+        "pin_wrong":        "PIN မှားသည်။ ထပ်ကြိုးစားပါ။",
+        "pin_clr":          "ဖျက်",
+        "pin_del":          "နောက်",
+        # Home
+        "categories":       "အမျိုးအစားများ",
+        "search_hint":      "  ချက်နည်းရှာမည်...",
+        "no_results":       "ရှာမတွေ့ပါ။",
+        "favorites":        "နှစ်သက်ရာများ",
+        "add_category":     "+ အမျိုးအစားသစ် ထည့်မည်",
+        "btn_edit":         "ပြင်",
+        "btn_del":          "ဖျက်",
+        "btn_menu":         "မီနူး",
+        "recipes_count":    "ချက်နည်း",
+        # Category
+        "btn_back":         "< နောက်",
+        "add_recipe":       "+ ချက်နည်းသစ် ထည့်မည်",
+        "btn_fav":          "သိမ်း",
+        "btn_unfav":        "...",
+        "no_favorites": "နှစ်သက်ရာ မရှိသေးပါ။ FAV နှိပ်၍ သိမ်းပါ။",
+        "swipe_hint":   "ဘယ်/ညာ ပွတ်ဆွဲ၍ အကြိုက် သတ်မှတ်ပါ",
+        "steps_count":      "အဆင့်",
+        "hot_preview":      "ပူ: ",
+        # Recipe
+        "parameters":       "အချက်အလက်များ",
+        "steps":            "အဆင့်များ",
+        "hot":              "ပူနွေး",
+        "iced":             "အအေး",
+        "ingredient":       "ပါဝင်ပစ္စည်း",
+        "qty":              "ပမာဏ",
+        "unit":             "ယူနစ်",
+        "measure_note":     "ပစ္စည်းအားလုံး တိကျစွာ တိုင်းတာပါ။",
+        "btn_share":        "မျှဝေ",
+        "share_title":      "ချက်နည်းစာသား",
+        "btn_close":        "ပိတ်မည်",
+        # Settings
+        "settings":         "ဆက်တင်များ",
+        "display_mode":     "မျက်နှာပြင် မုဒ်",
+        "dark":             "မှောင်",
+        "light":            "လင်း",
+        "primary_color":    "အဓိက အရောင်",
+        "quick_select":     "အမြန်ရွေးချယ်:",
+        "dark_bg":          "မှောင်သော နောက်ခံများ:",
+        "light_bg":         "လင်းသော နောက်ခံများ:",
+        "bg_color":         "နောက်ခံ အရောင်",
+        "font_size":        "စာလုံးအရွယ်အစား",
+        "small":            "သေး",
+        "medium":           "အလတ်",
+        "large":            "ကြီး",
+        "language":         "ဘာသာစကား",
+        "save_apply":       "သိမ်းပြီး သုံးမည်",
+        "reset_default":    "မူရင်းသို့ ပြန်ညှိမည်",
+        "theme_saved":      "သိမ်းပြီးပါပြီ။ App ပြန်ဖွင့်ပါ။",
+        "btn_ok":           "OK",
+        # Popups
+        "add_cat_title":    "အမျိုးအစားသစ်",
+        "edit_cat_title":   "အမျိုးအစား ပြင်မည်",
+        "cat_name":         "အမျိုးအစား နာမည်:",
+        "cat_icon":         "အိုင်ကွန်:",
+        "cat_hint": "ဥပမာ - Myanmar Milk Tea",
+        "icon_hint":        "ဥပမာ - T",
+        "btn_save":         "သိမ်းမည်",
+        "btn_cancel":       "မလုပ်တော့",
+        "confirm":          "အတည်ပြုမည်",
+        "del_cat_msg":      "ဤအမျိုးအစားကို ဖျက်မည်လား?",
+        "del_recipe_msg":   "ဤချက်နည်းကို ဖျက်မည်လား?",
+        "btn_delete":       "ဖျက်မည်",
+        "add_recipe_title": "ချက်နည်းသစ်",
+        "edit_recipe_title":"ချက်နည်း ပြင်မည်",
+        "recipe_name":      "ချက်နည်း နာမည်:",
+        "recipe_hint":      "e.g. Myanmar Milk Tea",
+        "format":           "ပုံစံ:",
+        "hot_ing":          "ပူနွေး ပါဝင်ပစ္စည်း (နာမည်,ပမာဏ,ယူနစ်):",
+        "iced_ing":         "အအေး ပါဝင်ပစ္စည်း (နာမည်,ပမာဏ,ယူနစ်):",
+        "steps_label":      "အဆင့်များ (တစ်ကြောင်းချင်း):",
+        "hot_and_iced":     "ပူ နှင့် အအေး",
+        "steps_only":       "အဆင့်များသာ",
+        # PIN settings
+        "change_pin":       "PIN ပြောင်းမည်",
+        "current_pin":      "လက်ရှိ PIN:",
+        "new_pin":          "PIN အသစ်:",
+        "confirm_pin":      "PIN အသစ် အတည်ပြု:",
+        "pin_changed":      "PIN အောင်မြင်စွာ ပြောင်းပြီးပါပြီ။",
+        "pin_wrong_cur":    "လက်ရှိ PIN မှားသည်။",
+        "pin_no_match":     "PIN အသစ်နှစ်ခု မတူညီပါ။",
+        "pin_short":        "PIN အနည်းဆုံး ၄ လုံး ရှိရမည်။",
+    },
+
+}
+
+def load_lang():
+    d = storage.load_lang_raw()
+    if d is None:
+        save_lang(DEFAULT_LANG)
+        return DEFAULT_LANG
+    return d.get("lang", DEFAULT_LANG)
+
+def save_lang(lang):
+    storage.save_lang_raw({"lang": lang})
+
+def get_strings():
+    lang = load_lang()
+    return STRINGS.get(lang, STRINGS["English"])
+
+# Global shortcut
+L = get_strings()
+
+def reload_lang():
+    global L
+    L = get_strings()

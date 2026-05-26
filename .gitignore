@@ -32,6 +32,9 @@ __pycache__/
 .kivy/
 .venv/
 venv/
+.idea/
+.vscode/
+data/.tmp_*
 data/.tmp_*
 
 # Local logs
