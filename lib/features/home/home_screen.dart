@@ -8,9 +8,9 @@ import '../../core/models/category.dart';
 import '../../core/models/content_item.dart';
 import '../../core/models/member.dart';
 import '../../core/search/content_search.dart';
-import '../../features/item_detail/item_detail_screen.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/content_chips.dart';
+import '../item_detail/item_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   HomeScreen({
@@ -35,7 +35,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late final Future<_HomeCatalog> _catalogFuture = _loadCatalog();
   final TextEditingController _searchController = TextEditingController();
-  Set<String> _favoriteIds = <String>{};
+  Set<String> _favoriteIds = {};
+  int _navIndex = 0;
+  bool _showSearch = false;
 
   @override
   void dispose() {
@@ -45,113 +47,278 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 4,
-      child: Scaffold(
-        appBar: AppBar(
-          leading: IconButton(
-            tooltip: 'Menu',
-            onPressed: () {},
-            icon: const Icon(Icons.menu),
-          ),
-          title: const Text('ZinmeAPP'),
-          actions: <Widget>[
-            IconButton(
-              tooltip: 'Search',
-              onPressed: () {},
-              icon: const Icon(Icons.search),
-            ),
-            IconButton(
-              tooltip: 'Lock',
-              onPressed: () {},
-              icon: const Icon(Icons.lock_outline),
-            ),
-          ],
-          bottom: const TabBar(
-            tabs: <Widget>[
-              Tab(text: 'All'),
-              Tab(text: 'Recipes'),
-              Tab(text: 'SOPs'),
-              Tab(text: 'Favorites'),
-            ],
-          ),
-        ),
-        floatingActionButton: widget.member.isAdmin
-            ? FloatingActionButton.extended(
-                onPressed: () {},
-                icon: const Icon(Icons.add),
-                label: const Text('Add'),
-              )
-            : null,
-        body: FutureBuilder<_HomeCatalog>(
-          future: _catalogFuture,
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            final catalog = snapshot.requireData;
-            final categoriesById = catalog.categoriesById;
-
-            return Column(
-              children: <Widget>[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search),
-                      hintText: 'Search recipes, SOPs, ingredients, or steps',
-                    ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                _HomeSummary(
-                  itemCount: catalog.items.length,
-                  draftCount: catalog.items
-                      .where((item) => item.status == ContentStatus.draft)
-                      .length,
-                  favoriteCount: _favoriteIds.length,
-                ),
-                Expanded(
-                  child: TabBarView(
-                    children: <Widget>[
-                      _ContentList(
-                        items: _itemsForTab(catalog, _HomeTab.all),
-                        categoriesById: categoriesById,
-                        favoriteIds: _favoriteIds,
-                        member: widget.member,
-                        onToggleFavorite: _toggleFavorite,
-                      ),
-                      _ContentList(
-                        items: _itemsForTab(catalog, _HomeTab.recipes),
-                        categoriesById: categoriesById,
-                        favoriteIds: _favoriteIds,
-                        member: widget.member,
-                        onToggleFavorite: _toggleFavorite,
-                      ),
-                      _ContentList(
-                        items: _itemsForTab(catalog, _HomeTab.sops),
-                        categoriesById: categoriesById,
-                        favoriteIds: _favoriteIds,
-                        member: widget.member,
-                        onToggleFavorite: _toggleFavorite,
-                      ),
-                      _ContentList(
-                        items: _itemsForTab(catalog, _HomeTab.favorites),
-                        categoriesById: categoriesById,
-                        favoriteIds: _favoriteIds,
-                        member: widget.member,
-                        onToggleFavorite: _toggleFavorite,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: _buildAppBar(),
+      body: FutureBuilder<_HomeCatalog>(
+        future: _catalogFuture,
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
             );
+          }
+          final catalog = snapshot.requireData;
+          return _buildBody(catalog);
+        },
+      ),
+      bottomNavigationBar: _buildBottomNav(),
+      floatingActionButton:
+          widget.member.isAdmin && _navIndex == 0
+              ? FloatingActionButton.extended(
+                onPressed: () {},
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                icon: const Icon(Icons.add),
+                label: const Text('Add Category'),
+              )
+              : null,
+    );
+  }
+
+  AppBar _buildAppBar() {
+    return AppBar(
+      backgroundColor: AppColors.background,
+      leading: IconButton(
+        icon: const Icon(Icons.menu, color: Colors.white),
+        onPressed: _openDrawer,
+      ),
+      title:
+          _showSearch
+              ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  hintText: 'Search recipes...',
+                  hintStyle: TextStyle(color: Colors.white54),
+                  border: InputBorder.none,
+                ),
+                onChanged: (_) => setState(() {}),
+              )
+              : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Kitchen Guide',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    _navIndex == 1 ? 'Favorites' : 'Food & Beverage SOP',
+                    style: const TextStyle(color: Colors.white54, fontSize: 11),
+                  ),
+                ],
+              ),
+      actions: [
+        IconButton(
+          icon: Icon(
+            _showSearch ? Icons.close : Icons.search,
+            color: Colors.white,
+          ),
+          onPressed: () {
+            setState(() {
+              _showSearch = !_showSearch;
+              if (!_showSearch) {
+                _searchController.clear();
+              }
+            });
           },
         ),
+        Container(
+          margin: const EdgeInsets.only(right: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            widget.member.isAdmin ? 'ADMIN' : 'STAFF',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBody(_HomeCatalog catalog) {
+    final query = _searchController.text.toLowerCase().trim();
+
+    if (_navIndex == 1) {
+      return _buildFavoritesView(catalog);
+    }
+
+    if (query.isNotEmpty) {
+      return _buildSearchResults(catalog, query);
+    }
+
+    return _buildCategoryList(catalog);
+  }
+
+  Widget _buildCategoryList(_HomeCatalog catalog) {
+    final grouped = <Category, List<ContentItem>>{};
+    for (final cat in catalog.categories) {
+      grouped[cat] =
+          catalog.items.where((item) => item.categoryId == cat.id).toList();
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 100),
+      itemCount: grouped.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final cat = catalog.categories[index];
+        final items = grouped[cat] ?? [];
+        return _CategoryCard(
+          category: cat,
+          items: items,
+          favoriteIds: _favoriteIds,
+          member: widget.member,
+          onToggleFavorite: _toggleFavorite,
+          onOpenCategory: () {},
+          onEdit: widget.member.isAdmin ? () {} : null,
+          onDelete: widget.member.isAdmin ? () {} : null,
+        );
+      },
+    );
+  }
+
+  Widget _buildFavoritesView(_HomeCatalog catalog) {
+    final favItems =
+        catalog.items.where((item) => _favoriteIds.contains(item.id)).toList();
+
+    if (favItems.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.star_border, size: 48, color: Colors.white24),
+            SizedBox(height: 12),
+            Text(
+              'No favorites yet',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Tap the star on any recipe to save it.',
+              style: TextStyle(color: Colors.white38, fontSize: 13),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 100),
+      itemCount: favItems.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        final item = favItems[index];
+        final cat = catalog.categoriesById[item.categoryId];
+        return _ItemRow(
+          item: item,
+          category: cat,
+          isFavorite: true,
+          member: widget.member,
+          onToggleFavorite: _toggleFavorite,
+        );
+      },
+    );
+  }
+
+  Widget _buildSearchResults(_HomeCatalog catalog, String query) {
+    final results = searchContentItems(
+      items: catalog.items,
+      categoriesById: catalog.categoriesById,
+      query: query,
+    );
+
+    if (results.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.search_off, size: 48, color: Colors.white24),
+            SizedBox(height: 12),
+            Text(
+              'No results found.',
+              style: TextStyle(color: Colors.white, fontSize: 16),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 100),
+      itemCount: results.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        final item = results[index];
+        final cat = catalog.categoriesById[item.categoryId];
+        return _ItemRow(
+          item: item,
+          category: cat,
+          isFavorite: _favoriteIds.contains(item.id),
+          member: widget.member,
+          onToggleFavorite: _toggleFavorite,
+        );
+      },
+    );
+  }
+
+  Widget _buildBottomNav() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.primary, width: 1)),
       ),
+      child: BottomNavigationBar(
+        currentIndex: _navIndex,
+        backgroundColor: AppColors.surface,
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: Colors.white38,
+        type: BottomNavigationBarType.fixed,
+        onTap: (index) => setState(() => _navIndex = index),
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.star), label: 'Favorites'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.schedule),
+            label: 'Schedule',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: 'Settings',
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openDrawer() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder:
+          (context) => _DrawerMenu(
+            member: widget.member,
+            onClose: () => Navigator.pop(context),
+          ),
     );
   }
 
@@ -161,25 +328,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _favoriteIds = await widget.favoritesRepository.loadFavoriteIds(
       widget.member.uid,
     );
-
     return _HomeCatalog(categories: categories, items: items);
-  }
-
-  List<ContentItem> _itemsForTab(_HomeCatalog catalog, _HomeTab tab) {
-    final query = _searchController.text;
-    final visibleItems = switch (tab) {
-      _HomeTab.all => catalog.items,
-      _HomeTab.recipes => catalog.items.where((item) => item.isRecipe).toList(),
-      _HomeTab.sops => catalog.items.where((item) => item.isSop).toList(),
-      _HomeTab.favorites =>
-        catalog.items.where((item) => _favoriteIds.contains(item.id)).toList(),
-    };
-
-    return searchContentItems(
-      items: visibleItems,
-      categoriesById: catalog.categoriesById,
-      query: query,
-    );
   }
 
   void _toggleFavorite(String itemId, bool isFavorite) {
@@ -190,12 +339,11 @@ class _HomeScreenState extends State<HomeScreen> {
         _favoriteIds.remove(itemId);
       }
     });
-
     widget.favoritesRepository.saveFavoriteIds(widget.member.uid, _favoriteIds);
   }
 }
 
-enum _HomeTab { all, recipes, sops, favorites }
+// ── Data ──────────────────────────────────────────────────────────────────────
 
 class _HomeCatalog {
   const _HomeCatalog({required this.categories, required this.items});
@@ -203,109 +351,174 @@ class _HomeCatalog {
   final List<Category> categories;
   final List<ContentItem> items;
 
-  Map<String, Category> get categoriesById {
-    return <String, Category>{
-      for (final category in categories) category.id: category,
-    };
-  }
+  Map<String, Category> get categoriesById => {
+    for (final c in categories) c.id: c,
+  };
 }
 
-class _HomeSummary extends StatelessWidget {
-  const _HomeSummary({
-    required this.itemCount,
-    required this.draftCount,
-    required this.favoriteCount,
+// ── Category Card ─────────────────────────────────────────────────────────────
+
+class _CategoryCard extends StatelessWidget {
+  const _CategoryCard({
+    required this.category,
+    required this.items,
+    required this.favoriteIds,
+    required this.member,
+    required this.onToggleFavorite,
+    required this.onOpenCategory,
+    this.onEdit,
+    this.onDelete,
   });
 
-  final int itemCount;
-  final int draftCount;
-  final int favoriteCount;
+  final Category category;
+  final List<ContentItem> items;
+  final Set<String> favoriteIds;
+  final Member member;
+  final void Function(String, bool) onToggleFavorite;
+  final VoidCallback onOpenCategory;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      child: Row(
-        children: <Widget>[
-          _Metric(label: 'Items', value: itemCount.toString()),
-          _Metric(label: 'Drafts', value: draftCount.toString()),
-          _Metric(label: 'Favorites', value: favoriteCount.toString()),
+    final preview = items.take(3).toList();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Column(
+        children: [
+          // Header
+          InkWell(
+            onTap: onOpenCategory,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      category.icon.isNotEmpty
+                          ? category.icon[0].toUpperCase()
+                          : category.name[0].toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          category.name,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          '${items.length} recipes',
+                          style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Divider
+          const Divider(height: 1, color: AppColors.surfaceHigh),
+
+          // Recipe rows
+          ...preview.map(
+            (item) => _ItemRow(
+              item: item,
+              category: null,
+              isFavorite: favoriteIds.contains(item.id),
+              member: member,
+              onToggleFavorite: onToggleFavorite,
+            ),
+          ),
+
+          // View all
+          if (items.length > 3)
+            TextButton(
+              onPressed: onOpenCategory,
+              child: Text(
+                'View all ${items.length} recipes  >',
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+
+          // Admin actions
+          if (member.isAdmin) ...[
+            const Divider(height: 1, color: AppColors.surfaceHigh),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  _ActionBtn(
+                    icon: Icons.edit_outlined,
+                    color: AppColors.primary,
+                    onTap: onEdit ?? () {},
+                  ),
+                  const SizedBox(width: 8),
+                  _ActionBtn(
+                    icon: Icons.delete_outline,
+                    color: Colors.red,
+                    onTap: onDelete ?? () {},
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _Metric extends StatelessWidget {
-  const _Metric({required this.label, required this.value});
+// ── Item Row ──────────────────────────────────────────────────────────────────
 
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(label, style: Theme.of(context).textTheme.labelMedium),
-              const SizedBox(height: 4),
-              Text(value, style: Theme.of(context).textTheme.titleLarge),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ContentList extends StatelessWidget {
-  const _ContentList({
-    required this.items,
-    required this.categoriesById,
-    required this.favoriteIds,
-    required this.member,
-    required this.onToggleFavorite,
-  });
-
-  final List<ContentItem> items;
-  final Map<String, Category> categoriesById;
-  final Set<String> favoriteIds;
-  final Member member;
-  final void Function(String itemId, bool isFavorite) onToggleFavorite;
-
-  @override
-  Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return const Center(child: Text('No matching content.'));
-    }
-
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
-      itemBuilder: (context, index) {
-        final item = items[index];
-        final category = categoriesById[item.categoryId];
-        final isFavorite = favoriteIds.contains(item.id);
-
-        return _ContentCard(
-          item: item,
-          category: category,
-          isFavorite: isFavorite,
-          member: member,
-          onToggleFavorite: onToggleFavorite,
-        );
-      },
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
-      itemCount: items.length,
-    );
-  }
-}
-
-class _ContentCard extends StatelessWidget {
-  const _ContentCard({
+class _ItemRow extends StatelessWidget {
+  const _ItemRow({
     required this.item,
     required this.category,
     required this.isFavorite,
@@ -317,80 +530,169 @@ class _ContentCard extends StatelessWidget {
   final Category? category;
   final bool isFavorite;
   final Member member;
-  final void Function(String itemId, bool isFavorite) onToggleFavorite;
+  final void Function(String, bool) onToggleFavorite;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (context) => ItemDetailScreen(
-              item: item,
-              category: category,
-              isFavorite: isFavorite,
-              onFavoriteChanged: (value) => onToggleFavorite(item.id, value),
+    return InkWell(
+      onTap:
+          () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder:
+                  (_) => ItemDetailScreen(
+                    item: item,
+                    category: category,
+                    isFavorite: isFavorite,
+                    onFavoriteChanged: (val) => onToggleFavorite(item.id, val),
+                  ),
             ),
           ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                children: <Widget>[
-                  ContentTypeChip(item: item),
-                  const SizedBox(width: 8),
-                  if (member.isAdmin) StatusChip(status: item.status),
-                  const Spacer(),
-                  IconButton(
-                    tooltip: isFavorite ? 'Remove favorite' : 'Add favorite',
-                    onPressed: () => onToggleFavorite(item.id, !isFavorite),
-                    icon: Icon(
-                      isFavorite ? Icons.star : Icons.star_border,
-                      color: isFavorite ? AppColors.favorite : null,
-                    ),
-                  ),
-                  if (member.isAdmin)
-                    IconButton(
-                      tooltip: 'Edit',
-                      onPressed: () {},
-                      icon: const Icon(Icons.edit_outlined),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(item.name, style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 4),
-              Text(
-                category?.name ?? 'Uncategorized',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: AppColors.gold),
-              ),
-              const SizedBox(height: 10),
-              Text(item.previewText),
-              if (item.previewParameters.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: item.previewParameters.take(3).map((parameter) {
-                    return Chip(
-                      label: Text(
-                        '${parameter.name}: ${parameter.formattedAmount} ${parameter.unit}',
-                      ),
-                      visualDensity: VisualDensity.compact,
-                    );
-                  }).toList(),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+        child: Row(
+          children: [
+            Icon(
+              isFavorite ? Icons.star : Icons.star_border,
+              size: 16,
+              color: isFavorite ? AppColors.favorite : Colors.white24,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                item.name,
+                style: TextStyle(
+                  color: isFavorite ? AppColors.favorite : Colors.white70,
+                  fontSize: 13,
                 ),
-              ],
-            ],
-          ),
+              ),
+            ),
+            ContentTypeChip(item: item),
+          ],
         ),
       ),
+    );
+  }
+}
+
+// ── Action Button ─────────────────────────────────────────────────────────────
+
+class _ActionBtn extends StatelessWidget {
+  const _ActionBtn({
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceHigh,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: color, size: 16),
+      ),
+    );
+  }
+}
+
+// ── Drawer Menu ───────────────────────────────────────────────────────────────
+
+class _DrawerMenu extends StatelessWidget {
+  const _DrawerMenu({required this.member, required this.onClose});
+
+  final Member member;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.local_cafe, color: Colors.white),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Kitchen Guide',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    member.isAdmin ? 'Admin Mode' : 'Staff Mode',
+                    style: const TextStyle(color: Colors.white38, fontSize: 12),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          const Divider(color: AppColors.surfaceHigh),
+          _DrawerItem(icon: Icons.home, label: 'Home', onTap: onClose),
+          _DrawerItem(icon: Icons.star, label: 'Favorites', onTap: onClose),
+          _DrawerItem(icon: Icons.schedule, label: 'Schedule', onTap: onClose),
+          _DrawerItem(icon: Icons.settings, label: 'Settings', onTap: onClose),
+          _DrawerItem(icon: Icons.lock_outline, label: 'Lock', onTap: onClose),
+          if (member.isAdmin)
+            _DrawerItem(
+              icon: Icons.admin_panel_settings,
+              label: 'Admin Mode',
+              onTap: onClose,
+            ),
+          const Divider(color: AppColors.surfaceHigh),
+          _DrawerItem(
+            icon: Icons.info_outline,
+            label: 'About  v2.0',
+            onTap: onClose,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DrawerItem extends StatelessWidget {
+  const _DrawerItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(icon, color: AppColors.primary),
+      title: Text(label, style: const TextStyle(color: Colors.white)),
+      onTap: onTap,
+      dense: true,
     );
   }
 }
