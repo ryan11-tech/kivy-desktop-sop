@@ -1,8 +1,4 @@
 import 'package:flutter/material.dart';
-
-import '../../core/firestore/favorites_repository.dart';
-import '../../core/firestore/item_repository.dart';
-import '../../core/firestore/mock_catalog_repository.dart';
 import '../../core/models/category.dart';
 import '../../core/models/content_item.dart';
 import '../../core/models/member.dart';
