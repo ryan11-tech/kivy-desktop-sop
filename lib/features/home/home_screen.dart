@@ -10,7 +10,10 @@ import '../../core/models/member.dart';
 import '../../core/search/content_search.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/content_chips.dart';
+import '../category/category_screen.dart';
 import '../item_detail/item_detail_screen.dart';
+import '../schedule/schedule_screen.dart';
+import '../settings/settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   HomeScreen({
@@ -182,7 +185,19 @@ class _HomeScreenState extends State<HomeScreen> {
           favoriteIds: _favoriteIds,
           member: widget.member,
           onToggleFavorite: _toggleFavorite,
-          onOpenCategory: () {},
+          onOpenCategory:
+              () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder:
+                      (_) => CategoryScreen(
+                        category: cat,
+                        items: grouped[cat] ?? [],
+                        member: widget.member,
+                        favoriteIds: _favoriteIds,
+                        onToggleFavorite: _toggleFavorite,
+                      ),
+                ),
+              ),
           onEdit: widget.member.isAdmin ? () {} : null,
           onDelete: widget.member.isAdmin ? () {} : null,
         );
@@ -290,7 +305,23 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedItemColor: AppColors.primary,
         unselectedItemColor: Colors.white38,
         type: BottomNavigationBarType.fixed,
-        onTap: (index) => setState(() => _navIndex = index),
+        onTap: (index) {
+          if (index == 2) {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ScheduleScreen(isAdmin: widget.member.isAdmin),
+              ),
+            );
+          } else if (index == 3) {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => SettingsScreen(isAdmin: widget.member.isAdmin),
+              ),
+            );
+          } else {
+            setState(() => _navIndex = index);
+          }
+        },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.star), label: 'Favorites'),
