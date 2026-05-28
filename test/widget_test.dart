@@ -16,6 +16,19 @@ class _MockStore extends Mock implements SecureSessionStore {}
 class _MockConnectivity extends Mock implements ConnectivityProbe {}
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(
+      const StaffUser(
+        id: 'fallback',
+        email: 'fallback@example.com',
+        displayName: 'Fallback',
+        requiresPasswordChange: false,
+        requiresOtp: false,
+      ),
+    );
+    registerFallbackValue(const <Shop>[]);
+  });
+
   testWidgets('renders home when staff session is ready', (tester) async {
     final api = _MockApi();
     final store = _MockStore();
@@ -28,15 +41,18 @@ void main() {
     when(() => store.saveUser(any())).thenAnswer((_) async {});
     when(() => store.saveShops(any())).thenAnswer((_) async {});
     when(() => store.saveActiveShopId(any())).thenAnswer((_) async {});
-    when(() => api.me()).thenAnswer((_) async => const StaffUser(
-          id: 'u',
-          email: 'a@b.c',
-          displayName: 'A',
-          requiresPasswordChange: false,
-          requiresOtp: false,
-        ));
-    when(() => api.myShops())
-        .thenAnswer((_) async => const [Shop(id: 's1', name: 'Shop One')]);
+    when(() => api.me()).thenAnswer(
+      (_) async => const StaffUser(
+        id: 'u',
+        email: 'a@b.c',
+        displayName: 'A',
+        requiresPasswordChange: false,
+        requiresOtp: false,
+      ),
+    );
+    when(
+      () => api.myShops(),
+    ).thenAnswer((_) async => const [Shop(id: 's1', name: 'Shop One')]);
 
     final controller = StaffSessionController(
       apiClient: api,
@@ -48,7 +64,18 @@ void main() {
     await controller.bootstrap();
     await tester.pumpAndSettle();
 
-    // HomeScreen renders the "Kitchen Guide" title.
-    expect(find.text('Kitchen Guide'), findsOneWidget);
+    expect(find.text('Enter PIN to continue'), findsOneWidget);
+
+    await tester.tap(find.text('2'));
+    await tester.pump();
+    await tester.tap(find.text('2'));
+    await tester.pump();
+    await tester.tap(find.text('2'));
+    await tester.pump();
+    await tester.tap(find.text('2'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Enter PIN to continue'), findsNothing);
+    expect(find.text('Food & Beverage SOP'), findsOneWidget);
   });
 }

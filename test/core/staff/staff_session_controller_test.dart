@@ -36,6 +36,11 @@ void main() {
   late _MockConnectivity connectivity;
   late StaffSessionController controller;
 
+  setUpAll(() {
+    registerFallbackValue(_user());
+    registerFallbackValue(const <Shop>[]);
+  });
+
   setUp(() {
     api = _MockApi();
     store = _MockStore();
@@ -70,19 +75,23 @@ void main() {
       expect(controller.state.offline, isTrue);
     });
 
-    test('offline with cached user + shops + active id -> ready offline', () async {
-      when(() => connectivity.isOnline()).thenAnswer((_) async => false);
-      when(() => store.readUser()).thenAnswer((_) async => _user());
-      when(() => store.readShops())
-          .thenAnswer((_) async => [_shop('s1'), _shop('s2')]);
-      when(() => store.readActiveShopId()).thenAnswer((_) async => 's2');
+    test(
+      'offline with cached user + shops + active id -> ready offline',
+      () async {
+        when(() => connectivity.isOnline()).thenAnswer((_) async => false);
+        when(() => store.readUser()).thenAnswer((_) async => _user());
+        when(
+          () => store.readShops(),
+        ).thenAnswer((_) async => [_shop('s1'), _shop('s2')]);
+        when(() => store.readActiveShopId()).thenAnswer((_) async => 's2');
 
-      await controller.bootstrap();
+        await controller.bootstrap();
 
-      expect(controller.state.status, StaffSessionStatus.ready);
-      expect(controller.state.activeShop?.id, 's2');
-      expect(controller.state.offline, isTrue);
-    });
+        expect(controller.state.status, StaffSessionStatus.ready);
+        expect(controller.state.activeShop?.id, 's2');
+        expect(controller.state.offline, isTrue);
+      },
+    );
 
     test('online + 401 from /me -> needsLogin and clears store', () async {
       when(() => connectivity.isOnline()).thenAnswer((_) async => true);
@@ -96,7 +105,9 @@ void main() {
 
     test('online + requiresPasswordChange -> needsPasswordChange', () async {
       when(() => connectivity.isOnline()).thenAnswer((_) async => true);
-      when(() => api.me()).thenAnswer((_) async => _user(requiresPassword: true));
+      when(
+        () => api.me(),
+      ).thenAnswer((_) async => _user(requiresPassword: true));
 
       await controller.bootstrap();
 
@@ -134,23 +145,28 @@ void main() {
       verify(() => store.saveActiveShopId('only')).called(1);
     });
 
-    test('online + multi shop without persisted id -> needsShopSelection', () async {
-      when(() => connectivity.isOnline()).thenAnswer((_) async => true);
-      when(() => api.me()).thenAnswer((_) async => _user());
-      when(() => api.myShops())
-          .thenAnswer((_) async => [_shop('a'), _shop('b')]);
-      when(() => store.readActiveShopId()).thenAnswer((_) async => null);
+    test(
+      'online + multi shop without persisted id -> needsShopSelection',
+      () async {
+        when(() => connectivity.isOnline()).thenAnswer((_) async => true);
+        when(() => api.me()).thenAnswer((_) async => _user());
+        when(
+          () => api.myShops(),
+        ).thenAnswer((_) async => [_shop('a'), _shop('b')]);
+        when(() => store.readActiveShopId()).thenAnswer((_) async => null);
 
-      await controller.bootstrap();
+        await controller.bootstrap();
 
-      expect(controller.state.status, StaffSessionStatus.needsShopSelection);
-    });
+        expect(controller.state.status, StaffSessionStatus.needsShopSelection);
+      },
+    );
 
     test('online + multi shop with valid persisted id -> ready', () async {
       when(() => connectivity.isOnline()).thenAnswer((_) async => true);
       when(() => api.me()).thenAnswer((_) async => _user());
-      when(() => api.myShops())
-          .thenAnswer((_) async => [_shop('a'), _shop('b')]);
+      when(
+        () => api.myShops(),
+      ).thenAnswer((_) async => [_shop('a'), _shop('b')]);
       when(() => store.readActiveShopId()).thenAnswer((_) async => 'b');
 
       await controller.bootstrap();
@@ -159,24 +175,33 @@ void main() {
       expect(controller.state.activeShop?.id, 'b');
     });
 
-    test('online + multi shop with stale persisted id -> needsShopSelection',
-        () async {
-      when(() => connectivity.isOnline()).thenAnswer((_) async => true);
-      when(() => api.me()).thenAnswer((_) async => _user());
-      when(() => api.myShops())
-          .thenAnswer((_) async => [_shop('a'), _shop('b')]);
-      when(() => store.readActiveShopId()).thenAnswer((_) async => 'gone');
+    test(
+      'online + multi shop with stale persisted id -> needsShopSelection',
+      () async {
+        when(() => connectivity.isOnline()).thenAnswer((_) async => true);
+        when(() => api.me()).thenAnswer((_) async => _user());
+        when(
+          () => api.myShops(),
+        ).thenAnswer((_) async => [_shop('a'), _shop('b')]);
+        when(() => store.readActiveShopId()).thenAnswer((_) async => 'gone');
 
-      await controller.bootstrap();
+        await controller.bootstrap();
 
-      expect(controller.state.status, StaffSessionStatus.needsShopSelection);
-    });
+        expect(controller.state.status, StaffSessionStatus.needsShopSelection);
+      },
+    );
   });
 
   group('login', () {
     test('login + requiresPasswordChange -> needsPasswordChange', () async {
-      when(() => api.login(email: any(named: 'email'), password: any(named: 'password')))
-          .thenAnswer((_) async => LoginResult(user: _user(requiresPassword: true)));
+      when(
+        () => api.login(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        ),
+      ).thenAnswer(
+        (_) async => LoginResult(user: _user(requiresPassword: true)),
+      );
 
       await controller.login(email: 'a@b.c', password: 'x');
 
@@ -184,8 +209,12 @@ void main() {
     });
 
     test('login + requiresOtp -> needsOtp', () async {
-      when(() => api.login(email: any(named: 'email'), password: any(named: 'password')))
-          .thenAnswer((_) async => LoginResult(user: _user(requiresOtp: true)));
+      when(
+        () => api.login(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        ),
+      ).thenAnswer((_) async => LoginResult(user: _user(requiresOtp: true)));
 
       await controller.login(email: 'a@b.c', password: 'x');
 
@@ -193,8 +222,12 @@ void main() {
     });
 
     test('login success + single shop -> ready', () async {
-      when(() => api.login(email: any(named: 'email'), password: any(named: 'password')))
-          .thenAnswer((_) async => LoginResult(user: _user()));
+      when(
+        () => api.login(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        ),
+      ).thenAnswer((_) async => LoginResult(user: _user()));
       when(() => api.myShops()).thenAnswer((_) async => [_shop('only')]);
 
       await controller.login(email: 'a@b.c', password: 'x');
@@ -208,8 +241,9 @@ void main() {
       // Pre-set state to needsShopSelection via bootstrap.
       when(() => connectivity.isOnline()).thenAnswer((_) async => true);
       when(() => api.me()).thenAnswer((_) async => _user());
-      when(() => api.myShops())
-          .thenAnswer((_) async => [_shop('a'), _shop('b')]);
+      when(
+        () => api.myShops(),
+      ).thenAnswer((_) async => [_shop('a'), _shop('b')]);
       await controller.bootstrap();
       expect(controller.state.status, StaffSessionStatus.needsShopSelection);
 
