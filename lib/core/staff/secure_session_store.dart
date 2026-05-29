@@ -13,10 +13,11 @@ import 'staff_user.dart';
 /// the chosen active shop id.
 class SecureSessionStore {
   SecureSessionStore({FlutterSecureStorage? storage})
-      : _storage = storage ??
-            const FlutterSecureStorage(
-              aOptions: AndroidOptions(encryptedSharedPreferences: true),
-            );
+    : _storage =
+          storage ??
+          const FlutterSecureStorage(
+            aOptions: AndroidOptions(encryptedSharedPreferences: true),
+          );
 
   static const String _userKey = 'staff.user.cache';
   static const String _shopsKey = 'staff.shops.cache';

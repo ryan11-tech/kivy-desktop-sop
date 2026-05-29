@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-import '../../core/firestore/category_repository.dart';
 import '../../core/firestore/favorites_repository.dart';
-import '../../core/firestore/item_repository.dart';
-import '../../core/firestore/mock_catalog_repository.dart';
 import '../../core/models/category.dart';
 import '../../core/models/content_item.dart';
 import '../../core/models/member.dart';
 import '../../core/search/content_search.dart';
+import '../../core/sops/sop_catalog_controller.dart';
+import '../../core/sops/sop_category_mapper.dart';
+import '../../core/sops/sop_repository.dart';
+import '../../core/staff/staff_session_controller.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/content_chips.dart';
 import '../category/category_screen.dart';
@@ -17,17 +19,12 @@ import '../settings/settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   HomeScreen({
-    this.categoryRepository = const MockCategoryRepository(),
-    this.itemRepository = const MockItemRepository(),
     FavoritesRepository? favoritesRepository,
     this.member = DemoAccounts.admin,
     super.key,
   }) : favoritesRepository =
-           favoritesRepository ??
-           InMemoryFavoritesRepository(initialFavorites: {'classic_milk_tea'});
+           favoritesRepository ?? InMemoryFavoritesRepository();
 
-  final CategoryRepository categoryRepository;
-  final ItemRepository itemRepository;
   final FavoritesRepository favoritesRepository;
   final Member member;
 
@@ -36,35 +33,74 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  late final Future<_HomeCatalog> _catalogFuture = _loadCatalog();
   final TextEditingController _searchController = TextEditingController();
+  SopCatalogController? _catalog;
+  StaffSessionController? _session;
   Set<String> _favoriteIds = {};
   int _navIndex = 0;
   bool _showSearch = false;
+  bool _favoritesRequested = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    _catalog ??= SopCatalogController(context.read<SopRepository>())
+      ..addListener(_onCatalogChanged);
+
+    final session = context.read<StaffSessionController>();
+    if (!identical(session, _session)) {
+      _session?.removeListener(_onSessionChanged);
+      _session = session..addListener(_onSessionChanged);
+    }
+
+    if (!_favoritesRequested) {
+      _favoritesRequested = true;
+      widget.favoritesRepository.loadFavoriteIds(widget.member.uid).then((ids) {
+        if (mounted) {
+          setState(() => _favoriteIds = {...ids});
+        }
+      });
+    }
+
+    _syncShop();
+  }
+
+  void _onSessionChanged() => _syncShop();
+
+  void _onCatalogChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _syncShop() {
+    // loadForShop dedups by shop id, so calling it on every session change is
+    // safe and only reloads when the active shop actually changes.
+    _catalog?.loadForShop(_session?.state.activeShop);
+  }
 
   @override
   void dispose() {
+    _session?.removeListener(_onSessionChanged);
+    _catalog?.removeListener(_onCatalogChanged);
+    _catalog?.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final catalog = _catalog;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: _buildAppBar(),
-      body: FutureBuilder<_HomeCatalog>(
-        future: _catalogFuture,
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            );
-          }
-          final catalog = snapshot.requireData;
-          return _buildBody(catalog);
-        },
-      ),
+      body:
+          catalog == null
+              ? const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              )
+              : _buildBody(catalog),
       bottomNavigationBar: _buildBottomNav(),
       floatingActionButton:
           widget.member.isAdmin && _navIndex == 0
@@ -93,7 +129,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 autofocus: true,
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
-                  hintText: 'Search recipes...',
+                  hintText: 'Search SOPs...',
                   hintStyle: TextStyle(color: Colors.white54),
                   border: InputBorder.none,
                 ),
@@ -151,37 +187,67 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildBody(_HomeCatalog catalog) {
+  Widget _buildBody(SopCatalogController catalog) {
+    switch (catalog.status) {
+      case SopCatalogStatus.loading:
+        return const Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        );
+      case SopCatalogStatus.noShopSelected:
+        return const _MessageView(
+          icon: Icons.store_mall_directory_outlined,
+          title: 'No shop selected',
+          message: 'Select a shop to view its SOPs.',
+        );
+      case SopCatalogStatus.permissionDenied:
+        return _MessageView(
+          icon: Icons.lock_outline,
+          title: 'No access',
+          message:
+              catalog.errorMessage ??
+              'You do not have permission to view SOPs for this shop.',
+        );
+      case SopCatalogStatus.error:
+        return _MessageView(
+          icon: Icons.error_outline,
+          title: 'Could not load SOPs',
+          message: catalog.errorMessage ?? 'Something went wrong.',
+          onRetry: catalog.retry,
+        );
+      case SopCatalogStatus.empty:
+        return const _MessageView(
+          icon: Icons.inbox_outlined,
+          title: 'No SOPs yet',
+          message: 'No published SOPs are assigned to this shop.',
+        );
+      case SopCatalogStatus.loaded:
+        break;
+    }
+
     final query = _searchController.text.toLowerCase().trim();
 
     if (_navIndex == 1) {
-      return _buildFavoritesView(catalog);
+      return _buildFavoritesView(catalog.groups);
     }
 
     if (query.isNotEmpty) {
-      return _buildSearchResults(catalog, query);
+      return _buildSearchResults(catalog.groups, query);
     }
 
-    return _buildCategoryList(catalog);
+    return _buildGroupList(catalog.groups);
   }
 
-  Widget _buildCategoryList(_HomeCatalog catalog) {
-    final grouped = <Category, List<ContentItem>>{};
-    for (final cat in catalog.categories) {
-      grouped[cat] =
-          catalog.items.where((item) => item.categoryId == cat.id).toList();
-    }
-
+  Widget _buildGroupList(List<SopGroup> groups) {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 100),
-      itemCount: grouped.length,
+      itemCount: groups.length,
       separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
-        final cat = catalog.categories[index];
-        final items = grouped[cat] ?? [];
+        final group = groups[index];
+        final category = _categoryFor(group, index);
         return _CategoryCard(
-          category: cat,
-          items: items,
+          category: category,
+          items: group.items,
           favoriteIds: _favoriteIds,
           member: widget.member,
           onToggleFavorite: _toggleFavorite,
@@ -190,8 +256,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 MaterialPageRoute<void>(
                   builder:
                       (_) => CategoryScreen(
-                        category: cat,
-                        items: grouped[cat] ?? [],
+                        category: category,
+                        items: group.items,
                         member: widget.member,
                         favoriteIds: _favoriteIds,
                         onToggleFavorite: _toggleFavorite,
@@ -205,9 +271,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildFavoritesView(_HomeCatalog catalog) {
+  Widget _buildFavoritesView(List<SopGroup> groups) {
     final favItems =
-        catalog.items.where((item) => _favoriteIds.contains(item.id)).toList();
+        _flatItems(groups).where((i) => _favoriteIds.contains(i.id)).toList();
 
     if (favItems.isEmpty) {
       return const Center(
@@ -226,7 +292,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             SizedBox(height: 8),
             Text(
-              'Tap the star on any recipe to save it.',
+              'Tap the star on any SOP to save it.',
               style: TextStyle(color: Colors.white38, fontSize: 13),
             ),
           ],
@@ -240,10 +306,9 @@ class _HomeScreenState extends State<HomeScreen> {
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final item = favItems[index];
-        final cat = catalog.categoriesById[item.categoryId];
         return _ItemRow(
           item: item,
-          category: cat,
+          category: null,
           isFavorite: true,
           member: widget.member,
           onToggleFavorite: _toggleFavorite,
@@ -252,10 +317,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildSearchResults(_HomeCatalog catalog, String query) {
+  Widget _buildSearchResults(List<SopGroup> groups, String query) {
     final results = searchContentItems(
-      items: catalog.items,
-      categoriesById: catalog.categoriesById,
+      items: _flatItems(groups),
+      categoriesById: const <String, Category>{},
       query: query,
     );
 
@@ -281,10 +346,9 @@ class _HomeScreenState extends State<HomeScreen> {
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final item = results[index];
-        final cat = catalog.categoriesById[item.categoryId];
         return _ItemRow(
           item: item,
-          category: cat,
+          category: null,
           isFavorite: _favoriteIds.contains(item.id),
           member: widget.member,
           onToggleFavorite: _toggleFavorite,
@@ -353,13 +417,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<_HomeCatalog> _loadCatalog() async {
-    final categories = await widget.categoryRepository.listCategories();
-    final items = await widget.itemRepository.listVisibleItems(widget.member);
-    _favoriteIds = await widget.favoritesRepository.loadFavoriteIds(
-      widget.member.uid,
-    );
-    return _HomeCatalog(categories: categories, items: items);
+  // Synthesizes a display category from a SOP-type group so the existing
+  // category card/screen can render it. Keyed by sopType, not the opaque
+  // backend categoryId.
+  Category _categoryFor(SopGroup group, int index) {
+    return Category(id: group.key, name: group.label, icon: '', order: index);
+  }
+
+  List<ContentItem> _flatItems(List<SopGroup> groups) {
+    return [for (final group in groups) ...group.items];
   }
 
   void _toggleFavorite(String itemId, bool isFavorite) {
@@ -374,17 +440,63 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ── Data ──────────────────────────────────────────────────────────────────────
+// ── State Message ─────────────────────────────────────────────────────────────
 
-class _HomeCatalog {
-  const _HomeCatalog({required this.categories, required this.items});
+class _MessageView extends StatelessWidget {
+  const _MessageView({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.onRetry,
+  });
 
-  final List<Category> categories;
-  final List<ContentItem> items;
+  final IconData icon;
+  final String title;
+  final String message;
+  final Future<void> Function()? onRetry;
 
-  Map<String, Category> get categoriesById => {
-    for (final c in categories) c.id: c,
-  };
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 48, color: Colors.white24),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: const TextStyle(color: Colors.white38, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+            if (onRetry != null) ...[
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: onRetry,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                ),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // ── Category Card ─────────────────────────────────────────────────────────────
@@ -463,7 +575,7 @@ class _CategoryCard extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          '${items.length} recipes',
+                          '${items.length} SOPs',
                           style: const TextStyle(
                             color: Colors.white38,
                             fontSize: 11,
@@ -492,7 +604,7 @@ class _CategoryCard extends StatelessWidget {
           // Divider
           const Divider(height: 1, color: AppColors.surfaceHigh),
 
-          // Recipe rows
+          // SOP rows
           ...preview.map(
             (item) => _ItemRow(
               item: item,
@@ -508,7 +620,7 @@ class _CategoryCard extends StatelessWidget {
             TextButton(
               onPressed: onOpenCategory,
               child: Text(
-                'View all ${items.length} recipes  >',
+                'View all ${items.length} SOPs  >',
                 style: const TextStyle(
                   color: AppColors.primary,
                   fontSize: 12,

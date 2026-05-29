@@ -36,7 +36,8 @@ class StaffAuthRouter extends StatelessWidget {
       case StaffSessionStatus.blockedNoShops:
         return const _BlockedScreen(
           title: 'No shop assigned',
-          body: 'Your account is active but no shop has been linked yet.\n'
+          body:
+              'Your account is active but no shop has been linked yet.\n'
               'Please contact an administrator.',
         );
       case StaffSessionStatus.offlineBlocked:
@@ -93,8 +94,8 @@ class _BlockedScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               FilledButton(
-                onPressed: () =>
-                    context.read<StaffSessionController>().signOut(),
+                onPressed:
+                    () => context.read<StaffSessionController>().signOut(),
                 child: const Text('Sign out'),
               ),
             ],
@@ -134,8 +135,9 @@ class _OfflineScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               FilledButton(
-                onPressed: () =>
-                    context.read<StaffSessionController>().retryBootstrap(),
+                onPressed:
+                    () =>
+                        context.read<StaffSessionController>().retryBootstrap(),
                 child: const Text('Retry'),
               ),
             ],

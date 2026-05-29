@@ -14,7 +14,10 @@ import '../../theme/app_colors.dart';
 enum ShopSelectionMode { bootstrap, standalone }
 
 class ShopSelectionScreen extends StatefulWidget {
-  const ShopSelectionScreen({super.key, this.mode = ShopSelectionMode.bootstrap});
+  const ShopSelectionScreen({
+    super.key,
+    this.mode = ShopSelectionMode.bootstrap,
+  });
 
   final ShopSelectionMode mode;
 
@@ -55,7 +58,8 @@ class _ShopSelectionScreenState extends State<ShopSelectionScreen> {
   Widget build(BuildContext context) {
     final state = context.watch<StaffSessionController>().state;
     final shops = state.shops;
-    final selectedId = _selectedId ?? (shops.isNotEmpty ? shops.first.id : null);
+    final selectedId =
+        _selectedId ?? (shops.isNotEmpty ? shops.first.id : null);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -71,7 +75,10 @@ class _ShopSelectionScreenState extends State<ShopSelectionScreen> {
           children: [
             Expanded(
               child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 itemCount: shops.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
@@ -97,13 +104,14 @@ class _ShopSelectionScreenState extends State<ShopSelectionScreen> {
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
-                child: _submitting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Continue'),
+                child:
+                    _submitting
+                        ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : const Text('Continue'),
               ),
             ),
           ],
@@ -152,7 +160,10 @@ class _ShopTile extends StatelessWidget {
                     if ((shop.role ?? '').isNotEmpty)
                       Text(
                         shop.role!,
-                        style: const TextStyle(color: Colors.white54, fontSize: 12),
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                        ),
                       ),
                   ],
                 ),

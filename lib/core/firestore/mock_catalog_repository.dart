@@ -22,8 +22,9 @@ class MockItemRepository implements ItemRepository {
 
   @override
   Future<List<ContentItem>> listVisibleItems(Member member) async {
-    final items = mockItems.where((item) => item.canBeSeenBy(member)).toList()
-      ..sort((left, right) => left.order.compareTo(right.order));
+    final items =
+        mockItems.where((item) => item.canBeSeenBy(member)).toList()
+          ..sort((left, right) => left.order.compareTo(right.order));
 
     return items;
   }

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 
+import '../models/content_item.dart';
 import '../staff/shop.dart';
 import '../staff/staff_user.dart';
 import 'api_exceptions.dart';
@@ -21,9 +22,12 @@ class LoginResult {
 /// cookie) so subsequent calls authenticate automatically. All non-2xx
 /// responses are translated into the typed exceptions in [api_exceptions].
 class StaffApiClient {
-  StaffApiClient({required String baseUrl, required CookieStore cookieStore, Dio? dio})
-      : _cookieStore = cookieStore,
-        _dio = dio ?? Dio() {
+  StaffApiClient({
+    required String baseUrl,
+    required CookieStore cookieStore,
+    Dio? dio,
+  }) : _cookieStore = cookieStore,
+       _dio = dio ?? Dio() {
     _dio.options
       ..baseUrl = baseUrl
       ..connectTimeout = const Duration(seconds: 10)
@@ -50,7 +54,10 @@ class StaffApiClient {
     _cookieReady = true;
   }
 
-  Future<LoginResult> login({required String email, required String password}) async {
+  Future<LoginResult> login({
+    required String email,
+    required String password,
+  }) async {
     final res = await _send(
       () => _dio.post<Map<String, Object?>>(
         '/staff/login',
@@ -105,6 +112,22 @@ class StaffApiClient {
         .toList(growable: false);
   }
 
+  /// Lists published SOPs assigned to [shopId], shaped as [ContentItem]s.
+  ///
+  /// The backend returns each item with its stable `publicId` under the `id`
+  /// key, which becomes [ContentItem.id].
+  Future<List<ContentItem>> listShopSops(String shopId) async {
+    final res = await _send(
+      () => _dio.get<Map<String, Object?>>('/staff/shops/$shopId/sops'),
+    );
+    final data = res.data ?? const <String, Object?>{};
+    final list = (data['sops'] as List<Object?>?) ?? const <Object?>[];
+    return list
+        .whereType<Map<String, Object?>>()
+        .map((json) => ContentItem.fromJson(json['id'] as String? ?? '', json))
+        .toList(growable: false);
+  }
+
   Future<void> clearSession() async {
     await _cookieStore.clear();
   }
@@ -129,8 +152,10 @@ class StaffApiClient {
       return res;
     }
     final data = res.data;
-    final message = (data is Map<String, Object?>) ? data['message'] as String? : null;
-    final code = (data is Map<String, Object?>) ? data['code'] as String? : null;
+    final message =
+        (data is Map<String, Object?>) ? data['message'] as String? : null;
+    final code =
+        (data is Map<String, Object?>) ? data['code'] as String? : null;
     if (status == 401) {
       throw UnauthorizedException(message ?? 'Unauthorized');
     }
@@ -141,10 +166,7 @@ class StaffApiClient {
         code: code,
       );
     }
-    throw ServerApiException(
-      message ?? 'Server error',
-      statusCode: status,
-    );
+    throw ServerApiException(message ?? 'Server error', statusCode: status);
   }
 
   ApiException _mapDioError(DioException e) {
@@ -164,7 +186,11 @@ class StaffApiClient {
           return UnauthorizedException('Unauthorized', cause: e);
         }
         if (status >= 500) {
-          return ServerApiException('Server error', statusCode: status, cause: e);
+          return ServerApiException(
+            'Server error',
+            statusCode: status,
+            cause: e,
+          );
         }
         return ClientApiException(
           e.message ?? 'Request failed',

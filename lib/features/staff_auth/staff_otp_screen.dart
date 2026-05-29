@@ -114,9 +114,7 @@ class _StaffOtpScreenState extends State<StaffOtpScreen> {
                   keyboardType: TextInputType.number,
                   textAlign: TextAlign.center,
                   maxLength: _otpLength,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                  ],
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 24,
@@ -125,14 +123,20 @@ class _StaffOtpScreenState extends State<StaffOtpScreen> {
                   decoration: const InputDecoration(
                     counterText: '',
                     hintText: '000000',
-                    hintStyle: TextStyle(color: Colors.white24, letterSpacing: 8),
+                    hintStyle: TextStyle(
+                      color: Colors.white24,
+                      letterSpacing: 8,
+                    ),
                   ),
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),
                   Text(
                     _error!,
-                    style: const TextStyle(color: Color(0xFFFF6B6B), fontSize: 13),
+                    style: const TextStyle(
+                      color: Color(0xFFFF6B6B),
+                      fontSize: 13,
+                    ),
                   ),
                 ],
                 const SizedBox(height: 16),
@@ -141,13 +145,14 @@ class _StaffOtpScreenState extends State<StaffOtpScreen> {
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  child: _submitting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Verify'),
+                  child:
+                      _submitting
+                          ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : const Text('Verify'),
                 ),
                 const SizedBox(height: 12),
                 TextButton(

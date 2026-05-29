@@ -37,7 +37,11 @@ class ClientApiException extends ApiException {
 
 /// HTTP 5xx.
 class ServerApiException extends ApiException {
-  const ServerApiException(super.message, {required this.statusCode, super.cause});
+  const ServerApiException(
+    super.message, {
+    required this.statusCode,
+    super.cause,
+  });
 
   final int statusCode;
 }

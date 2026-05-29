@@ -12,7 +12,8 @@ class StaffUser {
     return StaffUser(
       id: json['id'] as String? ?? '',
       email: json['email'] as String? ?? '',
-      displayName: json['displayName'] as String? ?? json['name'] as String? ?? '',
+      displayName:
+          json['displayName'] as String? ?? json['name'] as String? ?? '',
       requiresPasswordChange: json['requiresPasswordChange'] as bool? ?? false,
       requiresOtp: json['requiresOtp'] as bool? ?? false,
     );
@@ -24,15 +25,13 @@ class StaffUser {
   final bool requiresPasswordChange;
   final bool requiresOtp;
 
-  StaffUser copyWith({
-    bool? requiresPasswordChange,
-    bool? requiresOtp,
-  }) {
+  StaffUser copyWith({bool? requiresPasswordChange, bool? requiresOtp}) {
     return StaffUser(
       id: id,
       email: email,
       displayName: displayName,
-      requiresPasswordChange: requiresPasswordChange ?? this.requiresPasswordChange,
+      requiresPasswordChange:
+          requiresPasswordChange ?? this.requiresPasswordChange,
       requiresOtp: requiresOtp ?? this.requiresOtp,
     );
   }

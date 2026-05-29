@@ -3,6 +3,8 @@ import 'package:mocktail/mocktail.dart';
 
 import 'package:zinme_app/app.dart';
 import 'package:zinme_app/core/api/staff_api_client.dart';
+import 'package:zinme_app/core/models/content_item.dart';
+import 'package:zinme_app/core/sops/sop_repository.dart';
 import 'package:zinme_app/core/staff/connectivity_probe.dart';
 import 'package:zinme_app/core/staff/secure_session_store.dart';
 import 'package:zinme_app/core/staff/shop.dart';
@@ -14,6 +16,12 @@ class _MockApi extends Mock implements StaffApiClient {}
 class _MockStore extends Mock implements SecureSessionStore {}
 
 class _MockConnectivity extends Mock implements ConnectivityProbe {}
+
+class _FakeSopRepository implements SopRepository {
+  @override
+  Future<List<ContentItem>> listShopSops(String shopId) async =>
+      const <ContentItem>[];
+}
 
 void main() {
   setUpAll(() {
@@ -60,7 +68,12 @@ void main() {
       connectivity: connectivity,
     );
 
-    await tester.pumpWidget(ZinmeApp(sessionController: controller));
+    await tester.pumpWidget(
+      ZinmeApp(
+        sessionController: controller,
+        sopRepository: _FakeSopRepository(),
+      ),
+    );
     await controller.bootstrap();
     await tester.pumpAndSettle();
 

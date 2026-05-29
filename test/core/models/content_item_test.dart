@@ -75,4 +75,55 @@ void main() {
     expect(Member.normalizeEmail(' Staff@Gmail.COM '), 'staff@gmail.com');
     expect(Member.emailKey('Staff+Shop@gmail.com'), 'staff_shop_gmail_com');
   });
+
+  test('parses a backend staff SOP payload', () {
+    final json = <String, Object?>{
+      'id': 'opening_counter_checklist',
+      'contentType': 'sop',
+      'status': 'published',
+      'categoryId': 'category-uuid',
+      'name': 'Opening Counter Checklist',
+      'notes': 'Daily setup before first service.',
+      'imageUrl': '',
+      'imagePath': '',
+      'recipe': <String, Object?>{
+        'recipeType': 'other',
+        'parameters': <Object?>[],
+        'steps': <Object?>[],
+        'variants': <Object?>[],
+      },
+      'sop': <String, Object?>{
+        'sopType': 'opening',
+        'parameters': <Object?>[
+          <String, Object?>{
+            'name': 'Fridge temperature',
+            'amount': 4,
+            'unit': 'C',
+          },
+        ],
+        'steps': <Object?>['Turn on lights.', 'Check fridge temperature.'],
+      },
+      'order': 20,
+    };
+
+    final item = ContentItem.fromJson(json['id'] as String, json);
+
+    expect(item.id, 'opening_counter_checklist');
+    expect(item.contentType, ContentType.sop);
+    expect(item.status, ContentStatus.published);
+    expect(item.isSop, isTrue);
+    expect(item.sop.sopType, 'opening');
+    expect(item.sop.parameters.single.name, 'Fridge temperature');
+    expect(item.sop.parameters.single.amount, 4);
+    expect(item.sop.steps, <String>[
+      'Turn on lights.',
+      'Check fridge temperature.',
+    ]);
+    // Recipe is a placeholder for SOP content items.
+    expect(item.recipe.recipeType, 'other');
+    expect(item.recipe.parameters, isEmpty);
+    expect(item.recipe.steps, isEmpty);
+    expect(item.recipe.variants, isEmpty);
+    expect(item.order, 20);
+  });
 }

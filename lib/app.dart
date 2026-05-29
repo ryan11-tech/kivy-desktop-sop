@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'core/sops/sop_repository.dart';
 import 'core/staff/staff_session_controller.dart';
 import 'features/home/home_screen.dart';
 import 'features/pin/pin_screen.dart';
@@ -8,14 +9,24 @@ import 'features/staff_auth/staff_auth_router.dart';
 import 'theme/app_theme.dart';
 
 class ZinmeApp extends StatelessWidget {
-  const ZinmeApp({super.key, required this.sessionController});
+  const ZinmeApp({
+    super.key,
+    required this.sessionController,
+    required this.sopRepository,
+  });
 
   final StaffSessionController sessionController;
+  final SopRepository sopRepository;
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider<StaffSessionController>.value(
-      value: sessionController,
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<StaffSessionController>.value(
+          value: sessionController,
+        ),
+        Provider<SopRepository>.value(value: sopRepository),
+      ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'Kitchen Guide',

@@ -6,12 +6,13 @@ List<ContentItem> searchContentItems({
   required Map<String, Category> categoriesById,
   required String query,
 }) {
-  final tokens = query
-      .trim()
-      .toLowerCase()
-      .split(RegExp(r'\s+'))
-      .where((token) => token.isNotEmpty)
-      .toList();
+  final tokens =
+      query
+          .trim()
+          .toLowerCase()
+          .split(RegExp(r'\s+'))
+          .where((token) => token.isNotEmpty)
+          .toList();
 
   if (tokens.isEmpty) {
     return items;

@@ -41,12 +41,12 @@ class StaffSessionState {
   });
 
   const StaffSessionState.initializing()
-      : status = StaffSessionStatus.initializing,
-        user = null,
-        shops = const <Shop>[],
-        activeShop = null,
-        offline = false,
-        lastError = null;
+    : status = StaffSessionStatus.initializing,
+      user = null,
+      shops = const <Shop>[],
+      activeShop = null,
+      offline = false,
+      lastError = null;
 
   final StaffSessionStatus status;
   final StaffUser? user;

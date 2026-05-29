@@ -17,9 +17,9 @@ class StaffSessionController extends ChangeNotifier {
     required StaffApiClient apiClient,
     required SecureSessionStore store,
     ConnectivityProbe? connectivity,
-  })  : _api = apiClient,
-        _store = store,
-        _connectivity = connectivity ?? ConnectivityProbe();
+  }) : _api = apiClient,
+       _store = store,
+       _connectivity = connectivity ?? ConnectivityProbe();
 
   final StaffApiClient _api;
   final SecureSessionStore _store;
@@ -54,20 +54,25 @@ class StaffSessionController extends ChangeNotifier {
     if (!online) {
       if (cachedUser != null && cachedShops.isNotEmpty) {
         final active = _resolveActive(cachedShops, cachedActiveId);
-        _emit(StaffSessionState(
-          status: active == null
-              ? StaffSessionStatus.needsShopSelection
-              : StaffSessionStatus.ready,
-          user: cachedUser,
-          shops: cachedShops,
-          activeShop: active,
-          offline: true,
-        ));
+        _emit(
+          StaffSessionState(
+            status:
+                active == null
+                    ? StaffSessionStatus.needsShopSelection
+                    : StaffSessionStatus.ready,
+            user: cachedUser,
+            shops: cachedShops,
+            activeShop: active,
+            offline: true,
+          ),
+        );
       } else {
-        _emit(_state.copyWith(
-          status: StaffSessionStatus.offlineBlocked,
-          offline: true,
-        ));
+        _emit(
+          _state.copyWith(
+            status: StaffSessionStatus.offlineBlocked,
+            offline: true,
+          ),
+        );
       }
       return;
     }
@@ -81,19 +86,23 @@ class StaffSessionController extends ChangeNotifier {
     final result = await _api.login(email: email, password: password);
     await _store.saveUser(result.user);
     if (result.user.requiresPasswordChange) {
-      _emit(_state.copyWith(
-        status: StaffSessionStatus.needsPasswordChange,
-        user: result.user,
-        clearError: true,
-      ));
+      _emit(
+        _state.copyWith(
+          status: StaffSessionStatus.needsPasswordChange,
+          user: result.user,
+          clearError: true,
+        ),
+      );
       return;
     }
     if (result.user.requiresOtp) {
-      _emit(_state.copyWith(
-        status: StaffSessionStatus.needsOtp,
-        user: result.user,
-        clearError: true,
-      ));
+      _emit(
+        _state.copyWith(
+          status: StaffSessionStatus.needsOtp,
+          user: result.user,
+          clearError: true,
+        ),
+      );
       return;
     }
     await _loadShopsAndAdvance(result.user);
@@ -119,10 +128,7 @@ class StaffSessionController extends ChangeNotifier {
     if (persist) {
       await _store.saveActiveShopId(shop.id);
     }
-    _emit(_state.copyWith(
-      status: StaffSessionStatus.ready,
-      activeShop: shop,
-    ));
+    _emit(_state.copyWith(status: StaffSessionStatus.ready, activeShop: shop));
   }
 
   Future<void> signOut() async {
@@ -143,21 +149,25 @@ class StaffSessionController extends ChangeNotifier {
       final user = await _api.me();
       await _store.saveUser(user);
       if (user.requiresPasswordChange) {
-        _emit(_state.copyWith(
-          status: StaffSessionStatus.needsPasswordChange,
-          user: user,
-          offline: false,
-          clearError: true,
-        ));
+        _emit(
+          _state.copyWith(
+            status: StaffSessionStatus.needsPasswordChange,
+            user: user,
+            offline: false,
+            clearError: true,
+          ),
+        );
         return;
       }
       if (user.requiresOtp) {
-        _emit(_state.copyWith(
-          status: StaffSessionStatus.needsOtp,
-          user: user,
-          offline: false,
-          clearError: true,
-        ));
+        _emit(
+          _state.copyWith(
+            status: StaffSessionStatus.needsOtp,
+            user: user,
+            offline: false,
+            clearError: true,
+          ),
+        );
         return;
       }
       await _loadShopsAndAdvance(user);
@@ -165,11 +175,13 @@ class StaffSessionController extends ChangeNotifier {
       await _store.clear();
       _emit(const StaffSessionState(status: StaffSessionStatus.needsLogin));
     } on NetworkException catch (e) {
-      _emit(_state.copyWith(
-        status: StaffSessionStatus.offlineBlocked,
-        offline: true,
-        lastError: e.message,
-      ));
+      _emit(
+        _state.copyWith(
+          status: StaffSessionStatus.offlineBlocked,
+          offline: true,
+          lastError: e.message,
+        ),
+      );
     }
   }
 
@@ -177,45 +189,53 @@ class StaffSessionController extends ChangeNotifier {
     final shops = await _api.myShops();
     await _store.saveShops(shops);
     if (shops.isEmpty) {
-      _emit(_state.copyWith(
-        status: StaffSessionStatus.blockedNoShops,
-        user: user,
-        shops: const <Shop>[],
-        clearActiveShop: true,
-        offline: false,
-      ));
+      _emit(
+        _state.copyWith(
+          status: StaffSessionStatus.blockedNoShops,
+          user: user,
+          shops: const <Shop>[],
+          clearActiveShop: true,
+          offline: false,
+        ),
+      );
       return;
     }
     if (shops.length == 1) {
       await _store.saveActiveShopId(shops.first.id);
-      _emit(_state.copyWith(
-        status: StaffSessionStatus.ready,
-        user: user,
-        shops: shops,
-        activeShop: shops.first,
-        offline: false,
-      ));
+      _emit(
+        _state.copyWith(
+          status: StaffSessionStatus.ready,
+          user: user,
+          shops: shops,
+          activeShop: shops.first,
+          offline: false,
+        ),
+      );
       return;
     }
     final persistedId = await _store.readActiveShopId();
     final resolved = _resolveActive(shops, persistedId);
     if (resolved != null) {
-      _emit(_state.copyWith(
-        status: StaffSessionStatus.ready,
-        user: user,
-        shops: shops,
-        activeShop: resolved,
-        offline: false,
-      ));
+      _emit(
+        _state.copyWith(
+          status: StaffSessionStatus.ready,
+          user: user,
+          shops: shops,
+          activeShop: resolved,
+          offline: false,
+        ),
+      );
       return;
     }
-    _emit(_state.copyWith(
-      status: StaffSessionStatus.needsShopSelection,
-      user: user,
-      shops: shops,
-      clearActiveShop: true,
-      offline: false,
-    ));
+    _emit(
+      _state.copyWith(
+        status: StaffSessionStatus.needsShopSelection,
+        user: user,
+        shops: shops,
+        clearActiveShop: true,
+        offline: false,
+      ),
+    );
   }
 
   Shop? _resolveActive(List<Shop> shops, String? activeId) {

@@ -9,7 +9,8 @@ class StaffChangePasswordScreen extends StatefulWidget {
   const StaffChangePasswordScreen({super.key});
 
   @override
-  State<StaffChangePasswordScreen> createState() => _StaffChangePasswordScreenState();
+  State<StaffChangePasswordScreen> createState() =>
+      _StaffChangePasswordScreenState();
 }
 
 class _StaffChangePasswordScreenState extends State<StaffChangePasswordScreen> {
@@ -95,29 +96,40 @@ class _StaffChangePasswordScreenState extends State<StaffChangePasswordScreen> {
                     decoration: const InputDecoration(
                       labelText: 'Current (temporary) password',
                     ),
-                    validator: (v) =>
-                        (v ?? '').isEmpty ? 'Current password is required.' : null,
+                    validator:
+                        (v) =>
+                            (v ?? '').isEmpty
+                                ? 'Current password is required.'
+                                : null,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _newController,
                     obscureText: true,
-                    decoration: const InputDecoration(labelText: 'New password'),
+                    decoration: const InputDecoration(
+                      labelText: 'New password',
+                    ),
                     validator: _validateStrength,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _confirmController,
                     obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Confirm new password'),
-                    validator: (v) =>
-                        (v ?? '').isEmpty ? 'Confirm your password.' : null,
+                    decoration: const InputDecoration(
+                      labelText: 'Confirm new password',
+                    ),
+                    validator:
+                        (v) =>
+                            (v ?? '').isEmpty ? 'Confirm your password.' : null,
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 16),
                     Text(
                       _error!,
-                      style: const TextStyle(color: Color(0xFFFF6B6B), fontSize: 13),
+                      style: const TextStyle(
+                        color: Color(0xFFFF6B6B),
+                        fontSize: 13,
+                      ),
                     ),
                   ],
                   const SizedBox(height: 24),
@@ -126,13 +138,14 @@ class _StaffChangePasswordScreenState extends State<StaffChangePasswordScreen> {
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
-                    child: _submitting
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Update password'),
+                    child:
+                        _submitting
+                            ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                            : const Text('Update password'),
                   ),
                 ],
               ),
