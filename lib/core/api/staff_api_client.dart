@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 
+import '../attendance/attendance_models.dart';
 import '../models/content_item.dart';
 import '../staff/shop.dart';
 import '../staff/staff_user.dart';
@@ -139,6 +140,84 @@ class StaffApiClient {
     return list
         .whereType<Map<String, Object?>>()
         .map((json) => ContentItem.fromJson(json['id'] as String? ?? '', json))
+        .toList(growable: false);
+  }
+
+  /// Current attendance state for [shopId] (`GET /staff/attendance/status`).
+  Future<AttendanceStatus> getAttendanceStatus(String shopId) async {
+    final res = await _send(
+      () => _dio.get<Map<String, Object?>>(
+        '/staff/attendance/status',
+        queryParameters: <String, Object?>{'shopId': shopId},
+      ),
+    );
+    return AttendanceStatus.fromJson(_map(res.data));
+  }
+
+  /// Clocks in at [shopId] with an optional captured location.
+  Future<ClockInResult> clockInAttendance({
+    required String shopId,
+    double? latitude,
+    double? longitude,
+    int? accuracyMeters,
+    DateTime? capturedAt,
+  }) async {
+    final res = await _send(
+      () => _dio.post<Map<String, Object?>>(
+        '/staff/attendance/clock-in',
+        data: _attendancePayload(
+          shopId,
+          latitude,
+          longitude,
+          accuracyMeters,
+          capturedAt,
+        ),
+      ),
+    );
+    return ClockInResult.fromJson(_map(res.data));
+  }
+
+  /// Clocks out of the open session at [shopId] with an optional location.
+  Future<ClockOutResult> clockOutAttendance({
+    required String shopId,
+    double? latitude,
+    double? longitude,
+    int? accuracyMeters,
+    DateTime? capturedAt,
+  }) async {
+    final res = await _send(
+      () => _dio.post<Map<String, Object?>>(
+        '/staff/attendance/clock-out',
+        data: _attendancePayload(
+          shopId,
+          latitude,
+          longitude,
+          accuracyMeters,
+          capturedAt,
+        ),
+      ),
+    );
+    return ClockOutResult.fromJson(_map(res.data));
+  }
+
+  /// The signed-in staff member's own attendance history.
+  Future<List<AttendanceSession>> listMyAttendance({
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final res = await _send(
+      () => _dio.get<Map<String, Object?>>(
+        '/staff/attendance/my',
+        queryParameters: <String, Object?>{
+          if (from != null) 'from': _ymd(from),
+          if (to != null) 'to': _ymd(to),
+        },
+      ),
+    );
+    final list = (res.data?['items'] as List<Object?>?) ?? const <Object?>[];
+    return list
+        .whereType<Map<String, Object?>>()
+        .map(AttendanceSession.fromJson)
         .toList(growable: false);
   }
 
@@ -380,10 +459,13 @@ class StaffApiClient {
       throw UnauthorizedException(message ?? 'Unauthorized');
     }
     if (status >= 400 && status < 500) {
+      final body = data is Map<String, Object?> ? data : null;
       throw ClientApiException(
         message ?? 'Request failed',
         statusCode: status,
         code: code,
+        distanceMeters: _intFrom(body?['distanceMeters']),
+        allowedRadiusMeters: _intFrom(body?['allowedRadiusMeters']),
       );
     }
     throw ServerApiException(message ?? 'Server error', statusCode: status);
@@ -425,4 +507,34 @@ Map<String, Object?> _map(Object? value) {
   if (value is Map<String, Object?>) return value;
   if (value is Map) return value.cast<String, Object?>();
   return const <String, Object?>{};
+}
+
+Map<String, Object?> _attendancePayload(
+  String shopId,
+  double? latitude,
+  double? longitude,
+  int? accuracyMeters,
+  DateTime? capturedAt,
+) {
+  return <String, Object?>{
+    'shopId': shopId,
+    if (latitude != null) 'latitude': latitude,
+    if (longitude != null) 'longitude': longitude,
+    if (accuracyMeters != null) 'accuracyMeters': accuracyMeters,
+    if (capturedAt != null) 'capturedAt': capturedAt.toUtc().toIso8601String(),
+  };
+}
+
+String _ymd(DateTime date) {
+  final local = date.toLocal();
+  final month = local.month.toString().padLeft(2, '0');
+  final day = local.day.toString().padLeft(2, '0');
+  return '${local.year.toString().padLeft(4, '0')}-$month-$day';
+}
+
+int? _intFrom(Object? value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value);
+  return null;
 }

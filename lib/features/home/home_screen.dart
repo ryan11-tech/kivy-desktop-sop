@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/attendance/attendance_controller.dart';
+import '../../core/attendance/attendance_repository.dart';
+import '../../core/attendance/location_service.dart';
 import '../../core/firestore/favorites_repository.dart';
 import '../../core/models/category.dart';
 import '../../core/models/content_item.dart';
@@ -14,10 +17,12 @@ import '../../core/sops/sop_repository.dart';
 import '../../core/staff/staff_session_controller.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/content_chips.dart';
+import '../attendance/attendance_history_screen.dart';
 import '../category/category_screen.dart';
 import '../item_detail/item_detail_screen.dart';
 import '../schedule/schedule_screen.dart';
 import '../settings/settings_screen.dart';
+import 'attendance_card.dart';
 
 /// Which content kind the home body is showing.
 enum HomeSegment { sop, recipe }
@@ -44,6 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   SopCatalogController? _catalog;
   RecipeCatalogController? _recipeCatalog;
+  AttendanceController? _attendance;
   StaffSessionController? _session;
   Set<String> _favoriteIds = {};
   String? _favoriteScopeKey;
@@ -59,6 +65,10 @@ class _HomeScreenState extends State<HomeScreen> {
       ..addListener(_onCatalogChanged);
     _recipeCatalog ??= RecipeCatalogController(context.read<RecipeRepository>())
       ..addListener(_onCatalogChanged);
+    _attendance ??= AttendanceController(
+      context.read<AttendanceRepository>(),
+      context.read<LocationProvider>(),
+    )..addListener(_onCatalogChanged);
 
     final session = context.read<StaffSessionController>();
     if (!identical(session, _session)) {
@@ -87,6 +97,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final shop = _session?.state.activeShop;
     _catalog?.loadForShop(shop);
     _recipeCatalog?.loadForShop(shop);
+    _attendance?.loadForShop(shop);
   }
 
   void _syncFavorites() {
@@ -106,6 +117,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _catalog?.dispose();
     _recipeCatalog?.removeListener(_onCatalogChanged);
     _recipeCatalog?.dispose();
+    _attendance?.removeListener(_onCatalogChanged);
+    _attendance?.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -248,7 +261,21 @@ class _HomeScreenState extends State<HomeScreen> {
       return SettingsScreen(isAdmin: member.isAdmin, embedded: true);
     }
     return Column(
-      children: [_buildSegmentBar(), Expanded(child: _buildRefreshableBody())],
+      children: [
+        if (_attendance != null)
+          AttendanceCard(
+            controller: _attendance!,
+            onViewHistory: _openAttendanceHistory,
+          ),
+        _buildSegmentBar(),
+        Expanded(child: _buildRefreshableBody()),
+      ],
+    );
+  }
+
+  void _openAttendanceHistory() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const AttendanceHistoryScreen()),
     );
   }
 
@@ -709,10 +736,7 @@ class _CategoryCard extends StatelessWidget {
                       color: AppColors.background,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(
-                      Icons.chevron_right,
-                      color: AppColors.primary,
-                    ),
+                    child: Icon(Icons.chevron_right, color: AppColors.primary),
                   ),
                 ],
               ),

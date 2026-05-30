@@ -4,6 +4,9 @@ import 'package:mocktail/mocktail.dart';
 
 import 'package:zinme_app/app.dart';
 import 'package:zinme_app/core/api/staff_api_client.dart';
+import 'package:zinme_app/core/attendance/attendance_models.dart';
+import 'package:zinme_app/core/attendance/attendance_repository.dart';
+import 'package:zinme_app/core/attendance/location_service.dart';
 import 'package:zinme_app/core/auth/pin_credential_store.dart';
 import 'package:zinme_app/core/firestore/favorites_repository.dart';
 import 'package:zinme_app/core/models/content_item.dart';
@@ -34,6 +37,50 @@ class _FakeRecipeRepository implements RecipeRepository {
   @override
   Future<List<ContentItem>> listShopRecipes(String shopId) async =>
       const <ContentItem>[];
+}
+
+class _FakeAttendanceRepository implements AttendanceRepository {
+  @override
+  Future<AttendanceStatus> status(String shopId) async => AttendanceStatus(
+    shopId: shopId,
+    shopName: 'Shop',
+    isClockedIn: false,
+    shopLocationConfigured: false,
+    attendanceRadiusMeters: 500,
+    attendanceLocationRequired: false,
+  );
+
+  @override
+  Future<ClockInResult> clockIn({
+    required String shopId,
+    CapturedLocation? location,
+  }) async => ClockInResult(
+    sessionId: 's',
+    clockInAt: DateTime.now().toUtc(),
+    allowedRadiusMeters: 500,
+  );
+
+  @override
+  Future<ClockOutResult> clockOut({
+    required String shopId,
+    CapturedLocation? location,
+  }) async => ClockOutResult(
+    sessionId: 's',
+    clockOutAt: DateTime.now().toUtc(),
+    totalMinutes: 0,
+    allowedRadiusMeters: 500,
+  );
+
+  @override
+  Future<List<AttendanceSession>> history({
+    DateTime? from,
+    DateTime? to,
+  }) async => const <AttendanceSession>[];
+}
+
+class _FakeLocationProvider implements LocationProvider {
+  @override
+  Future<LocationOutcome> capture() async => const LocationPermissionDenied();
 }
 
 class _MemoryUserPreferencesRepository implements UserPreferencesRepository {
@@ -182,6 +229,8 @@ Future<_ReadyAppHarness> _pumpReadyApp(WidgetTester tester) async {
       sessionController: controller,
       sopRepository: _FakeSopRepository(),
       recipeRepository: _FakeRecipeRepository(),
+      attendanceRepository: _FakeAttendanceRepository(),
+      locationProvider: _FakeLocationProvider(),
       favoritesRepository: InMemoryFavoritesRepository(),
       userPreferencesController: UserPreferencesController(
         repository: preferencesRepository,
