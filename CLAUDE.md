@@ -1,138 +1,57 @@
-# Tea SOP — Project Guide
+# CLAUDE.md
 
-A Kivy desktop app that displays Standard Operating Procedure cards for tea / milk-tea preparation. Phone-shaped window (400×700), single-user, kiosk-style. Used by staff in a shop.
+> **This repository is the Flutter `ZinmeApp` staff app.** Despite the folder
+> name (`kivy-desktop-sop`), the active app is Flutter — Material 3, Dio with
+> persisted Better Auth cookies, Provider for state, backed by the Zin Mae API.
+> The old Python/Kivy app is preserved under `legacy/kivy_desktop_sop/` for
+> reference only. Do not treat the legacy Kivy guide as current.
 
-## Stack
+## Read these first (canonical, in order)
 
-- **Python 3.10+**, **Kivy 2.3.x** for UI.
-- **JSON files on disk** as the data store (`data/*.json`). No database, no network, no async.
-- Single process. Single user. No auth beyond a shared PIN.
+1. [`AGENTS.md`](AGENTS.md) — project guide, architecture rules, code conventions, testing. The `ZinmeAPP - Project Guide` section is the current one; the `Tea SOP` section above it is legacy Kivy.
+2. [`ARCHITECTURE-flutter.md`](ARCHITECTURE-flutter.md) — backend API contract and client architecture.
+3. [`PRD-flutter.md`](PRD-flutter.md) — product behavior, roles, access states.
+4. [`docs/CODE_CONVENTIONS.md`](docs/CODE_CONVENTIONS.md) and [`docs/AI_CODING_RULES.md`](docs/AI_CODING_RULES.md) — quality and AI guardrails.
 
-Run: `python main.py`. Install: `pip install kivy`.
+This file defers to `AGENTS.md` for shared guidance. Do not duplicate it here.
 
-## Architecture (target)
+## What the app does today
 
-Three layers. Keep them separate.
+- Staff log in against the Zin Mae backend (`/api/staff/*`), persist the Better Auth session cookie, and change a temporary password on first login.
+- Staff load assigned shops and pick an active shop (multi-shop staff see a selector; single-shop staff skip it).
+- Published SOPs and recipes load from the backend for the active shop; favorites and local settings work; a per-device PIN unlock gates the app.
+- Admin users manage staff access and basic SOP/recipe content through the portal APIs.
+- Bundled mock SOP/recipe data is a dev-only fallback, enabled with `--dart-define` (`USE_API_CATALOG=false`).
 
-```
-main.py              entry, ScreenManager wiring only
-screens/             pure UI. No JSON. No file IO. No business logic.
-services/            all data IO, validation, migrations, domain rules
-data/                JSON files (recipes, pin, theme, lang)
-assets/              fonts, images
-theme.py / lang.py   read-only globals (TH, L) loaded once via services
-utils.py             Kivy widget helpers only (buttons, labels, draw)
-```
+## Source layout
 
-Rule: **screens never touch JSON**. They call `services.recipes.list()`, `services.recipes.update(...)`, etc. If a screen imports `json`, that's a bug.
-
-## Data schema
-
-`data/recipes.json` is versioned. The first key is always `schema_version`. Migrations live in `services/storage.py`.
-
-```json
-{
-  "schema_version": 2,
-  "categories": [
-    {
-      "id": "black_tea_base",
-      "name": "Black Tea Base",
-      "icon": "",
-      "recipes": [
-        {
-          "id": "base_001",
-          "name": "Black Tea Concentrate",
-          "type": "sop" | "drink" | "steps",
-          "favorite": false,
-          "notes": "",
-          "image": "assets/recipes/black_tea.jpg",
-          "updated_at": "2026-05-03T10:00:00Z",
-
-          "parameters": [{"name": "...", "amount": 1.0, "unit": "g"}],
-          "steps":      ["..."],
-          "variants":   [{"type": "Hot"|"Iced", "ingredients": [{"name":"...","amount":1.0,"unit":"ml"}]}]
-        }
-      ]
-    }
-  ]
-}
+```text
+lib/
+  main.dart, app.dart
+  theme/                  app_colors.dart, app_theme.dart
+  core/
+    api/                  StaffApiClient, cookie store, API models
+    auth/                 access controller, PIN lock + credential store
+    staff/                staff session controller/state, secure store, shop, connectivity
+    sops/  recipes/       remote + fallback repositories, catalog controllers, category mappers
+    models/  search/  preferences/  firestore/  security/
+  features/               staff_auth, home, category, item_detail, item_form,
+                          favorites, settings, admin_users, pin, no_access, ...
+  widgets/
 ```
 
-### Recipe types
+Rules (full list in `AGENTS.md`): screens never create HTTP clients — go through repositories or `StaffApiClient`; controllers/providers own state; models own serialization; read `contentType`, never infer recipe vs SOP from populated fields; staff/admin visibility is a permission rule, not just a widget condition.
 
-- `sop`     — `parameters[]` + `steps[]` (e.g. brewing a base).
-- `drink`   — `variants[]` with Hot / Iced ingredient lists.
-- `steps`   — `steps[]` only (procedure with no quantities).
+## Verify loop
 
-Always read the `type` field. Do not infer the shape from which keys are present.
-
-### IDs
-
-- IDs are stable. Renaming a category or recipe must **not** change its `id`.
-- New IDs are generated as `slugify(name) + short_random_suffix` to avoid collisions.
-- Lookup is always by `id`, never by `name`.
-
-### Images
-
-- Stored as **paths relative to project root** (e.g. `assets/recipes/foo.jpg`).
-- Absolute paths from another machine (`C:/Users/.../`) are stripped on migration.
-
-## `data/pin.json`
-
-```json
-{ "pin": "2222", "admin_pin": "1234", "enabled": true, "mode": "Staff" }
+```sh
+dart format .
+flutter analyze
+flutter test
 ```
 
-- `mode`: "Staff" or "Admin". Admin sees edit/delete/add buttons, Staff doesn't.
-- `mode` resets to "Staff" on every app start (see `splash_screen.go_next`).
-- PIN is plaintext. This is a kiosk app on a trusted device. Don't add hashing without a real threat model.
+## Known debt
 
-## Conventions
-
-### Code
-
-- **No business logic in screens.** Screen methods set up widgets and bind callbacks. Callbacks call services.
-- **No bare `except:`.** Catch the specific exception you can handle. Let the rest crash — `main.py` has a top-level handler.
-- **Atomic writes.** Use `services.storage.write_json` (write to `*.tmp`, `os.replace`). Never write directly with `open(path,"w")`.
-- **No comments explaining what code does.** Comment only non-obvious *why* (a constraint, a workaround, a Kivy quirk).
-- **No emojis** in code, comments, or commit messages.
-- **Imports**: stdlib, third-party, local — three blocks, alphabetised inside each.
-
-### Kivy
-
-- Each screen has one `build_ui()` (or `_build()`) that builds from scratch on `on_enter`. That's the rebuild model. Keep it.
-- For canvas drawing, define one local `def draw(w, *_):` and `bind(pos=draw, size=draw)`. Don't redefine the same draw closure five times in one method — extract a helper to `utils.py`.
-- Tkinter is **lazy-imported** inside the function that needs the file picker. Never at module top level — it pulls in `tkinter` for users who never open the dialog.
-- Use `Clock.schedule_once` for navigation that must happen after the current frame. Never use `time.sleep` on the main thread.
-
-### Schema changes
-
-When you change the recipe schema:
-
-1. Bump `SCHEMA_VERSION` in `services/storage.py`.
-2. Add a migration function `_migrate_v{N-1}_to_v{N}(data)`.
-3. Append it to the `MIGRATIONS` list.
-4. Update this file's "Data schema" section.
-
-Migrations run on load. They are pure functions over the dict. Never break old files.
-
-## Things we don't do
-
-- Don't add a real database (SQLite, etc.) until the recipe count needs it. ~1000 recipes still fits JSON fine.
-- Don't add async / threads. Kivy main loop + small JSON files = fast enough.
-- Don't introduce a new dependency without removing one. Keep the install one-liner.
-- Don't build a "framework" inside the app. No event bus, no DI, no plugin system. This is a 6-screen app.
-- Don't add unit tests for trivial Kivy widget code. Test the services layer only (data shape, migration, parsing).
-- Don't auto-generate IDs from user-typed names without a uniqueness check.
-
-## Workflow
-
-- Edit. Run `python main.py`. Click through the affected screen. That's the test loop.
-- Default PIN: `2222` (user) / `1234` (admin). The admin button in the drawer prompts for the admin PIN.
-- To reset everything: delete `data/theme.json` and `data/pin.json`. They regenerate.
-
-## Known debt (track here)
-
-- `home_screen.py` is 800 lines. The drawer should move to its own file when next touched.
-- `lang.py` hardcodes three languages in one Python dict. If a fourth language is added, move strings to `data/lang.json`.
-- No undo for delete operations. Categories and recipes are gone on save.
+- Settings persists theme-mode / primary-color / language, but only the PIN toggle and font-size actually apply. Wiring the rest needs a design-system pass (screens hardcode `AppColors.*` instead of going through `Theme`) plus `flutter_localizations` for l10n.
+- PIN is a per-device 4-digit default `2222`; per-user / server-issued PIN is planned later.
+- Legacy Kivy app under `legacy/kivy_desktop_sop/` is frozen — edit only on explicit request.

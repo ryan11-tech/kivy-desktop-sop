@@ -1,5 +1,8 @@
 # Tea SOP — Project Guide
 
+> **The active app is Flutter — see the [ZinmeAPP - Project Guide](#zinmeapp---project-guide) section below, which is the current guidance.**
+> The `Tea SOP` section that follows is legacy Kivy, kept for the code preserved under `legacy/kivy_desktop_sop/`.
+
 A Kivy desktop app that displays Standard Operating Procedure cards for tea / milk-tea preparation. Phone-shaped window (400×700), single-user, kiosk-style. Used by staff in a shop.
 
 ## Stack
