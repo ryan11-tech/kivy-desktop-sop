@@ -6,6 +6,7 @@ import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import '../models/content_item.dart';
 import '../staff/shop.dart';
 import '../staff/staff_user.dart';
+import 'admin_api_models.dart';
 import 'api_exceptions.dart';
 import 'cookie_store.dart';
 
@@ -40,7 +41,7 @@ class StaffApiClient {
 
   static const String defaultBaseUrl = String.fromEnvironment(
     'ZINME_API_BASE',
-    defaultValue: 'http://localhost/api',
+    defaultValue: 'https://zinmeteahouse.com/api',
   );
 
   final Dio _dio;
@@ -65,8 +66,15 @@ class StaffApiClient {
       ),
     );
     final data = res.data ?? const <String, Object?>{};
-    final userJson = data['user'] as Map<String, Object?>? ?? data;
-    return LoginResult(user: StaffUser.fromJson(userJson));
+    final requiresPasswordChange =
+        data['requiresPasswordChange'] as bool? ?? false;
+    final staffState = await me();
+    return LoginResult(
+      user: staffState.copyWith(
+        email: staffState.email.isEmpty ? email : staffState.email,
+        requiresPasswordChange: requiresPasswordChange,
+      ),
+    );
   }
 
   Future<void> changeInitialPassword({
@@ -84,20 +92,10 @@ class StaffApiClient {
     );
   }
 
-  Future<void> verifyEmailOtp({required String code}) async {
-    await _send(
-      () => _dio.post<Map<String, Object?>>(
-        '/staff/verify-email-otp',
-        data: <String, Object?>{'code': code},
-      ),
-    );
-  }
-
   Future<StaffUser> me() async {
     final res = await _send(() => _dio.get<Map<String, Object?>>('/staff/me'));
     final data = res.data ?? const <String, Object?>{};
-    final userJson = data['user'] as Map<String, Object?>? ?? data;
-    return StaffUser.fromJson(userJson);
+    return StaffUser.fromStaffSessionJson(data);
   }
 
   Future<List<Shop>> myShops() async {
@@ -128,8 +126,230 @@ class StaffApiClient {
         .toList(growable: false);
   }
 
+  /// Lists published recipes assigned to [shopId], shaped as [ContentItem]s.
+  ///
+  /// Same envelope as [listShopSops]: each item carries its stable `publicId`
+  /// under the `id` key, which becomes [ContentItem.id].
+  Future<List<ContentItem>> listShopRecipes(String shopId) async {
+    final res = await _send(
+      () => _dio.get<Map<String, Object?>>('/staff/shops/$shopId/recipes'),
+    );
+    final data = res.data ?? const <String, Object?>{};
+    final list = (data['recipes'] as List<Object?>?) ?? const <Object?>[];
+    return list
+        .whereType<Map<String, Object?>>()
+        .map((json) => ContentItem.fromJson(json['id'] as String? ?? '', json))
+        .toList(growable: false);
+  }
+
   Future<void> clearSession() async {
     await _cookieStore.clear();
+  }
+
+  Future<List<PortalShop>> listPortalShops() async {
+    final res = await _send(
+      () => _dio.get<Map<String, Object?>>('/portal/shops'),
+    );
+    final list = (res.data?['shops'] as List<Object?>?) ?? const <Object?>[];
+    return list
+        .whereType<Map<String, Object?>>()
+        .map(PortalShop.fromJson)
+        .toList();
+  }
+
+  Future<List<PortalStaffAccount>> listPortalStaffAccounts() async {
+    final res = await _send(
+      () => _dio.get<Map<String, Object?>>('/portal/staff'),
+    );
+    final list = (res.data?['staff'] as List<Object?>?) ?? const <Object?>[];
+    return list
+        .whereType<Map<String, Object?>>()
+        .map(PortalStaffAccount.fromJson)
+        .toList();
+  }
+
+  Future<PortalStaffAccount> createPortalStaffAccount(
+    PortalStaffMutation payload,
+  ) async {
+    final res = await _send(
+      () => _dio.post<Map<String, Object?>>(
+        '/portal/staff',
+        data: payload.toCreateJson(),
+      ),
+    );
+    return PortalStaffAccount.fromJson(_map(res.data?['staff']));
+  }
+
+  Future<PortalStaffAccount> updatePortalStaffAccount(
+    String staffProfileId,
+    PortalStaffMutation payload,
+  ) async {
+    final res = await _send(
+      () => _dio.patch<Map<String, Object?>>(
+        '/portal/staff/$staffProfileId',
+        data: payload.toUpdateJson(),
+      ),
+    );
+    return PortalStaffAccount.fromJson(_map(res.data?['staff']));
+  }
+
+  Future<void> deletePortalStaffAccount(String staffProfileId) async {
+    await _send(
+      () => _dio.delete<Map<String, Object?>>('/portal/staff/$staffProfileId'),
+    );
+  }
+
+  Future<List<PortalCategory>> listPortalCategories(
+    PortalContentKind kind,
+  ) async {
+    final path =
+        kind == PortalContentKind.sop
+            ? '/portal/sops/categories'
+            : '/portal/recipes/categories';
+    final res = await _send(() => _dio.get<Map<String, Object?>>(path));
+    final list =
+        (res.data?['categories'] as List<Object?>?) ?? const <Object?>[];
+    return list
+        .whereType<Map<String, Object?>>()
+        .map(
+          kind == PortalContentKind.sop
+              ? PortalCategory.fromSopJson
+              : PortalCategory.fromRecipeJson,
+        )
+        .toList();
+  }
+
+  Future<PortalCategory> createPortalCategory(
+    PortalContentKind kind, {
+    required String name,
+    required String slug,
+  }) async {
+    final path =
+        kind == PortalContentKind.sop
+            ? '/portal/sops/categories'
+            : '/portal/recipes/categories';
+    final data = <String, Object?>{
+      if (slug.trim().isNotEmpty) 'slug': slug.trim(),
+      'name': name.trim(),
+      if (kind == PortalContentKind.recipe) 'icon': null,
+      if (kind == PortalContentKind.sop) 'description': null,
+      'sortOrder': 0,
+    };
+    final res = await _send(
+      () => _dio.post<Map<String, Object?>>(path, data: data),
+    );
+    final json = _map(res.data?['category']);
+    return kind == PortalContentKind.sop
+        ? PortalCategory.fromSopJson(json)
+        : PortalCategory.fromRecipeJson(json);
+  }
+
+  Future<List<PortalContentItem>> listPortalContent(
+    PortalContentKind kind,
+  ) async {
+    final path =
+        kind == PortalContentKind.sop ? '/portal/sops' : '/portal/recipes';
+    final res = await _send(() => _dio.get<Map<String, Object?>>(path));
+    final key = kind == PortalContentKind.sop ? 'sops' : 'recipes';
+    final list = (res.data?[key] as List<Object?>?) ?? const <Object?>[];
+    return list
+        .whereType<Map<String, Object?>>()
+        .map(
+          kind == PortalContentKind.sop
+              ? PortalContentItem.fromSopJson
+              : PortalContentItem.fromRecipeJson,
+        )
+        .toList();
+  }
+
+  Future<PortalContentItem> getPortalContent(
+    PortalContentKind kind,
+    String id,
+  ) async {
+    final path =
+        kind == PortalContentKind.sop
+            ? '/portal/sops/$id'
+            : '/portal/recipes/$id';
+    final key = kind == PortalContentKind.sop ? 'sop' : 'recipe';
+    final res = await _send(() => _dio.get<Map<String, Object?>>(path));
+    final json = _map(res.data?[key]);
+    return kind == PortalContentKind.sop
+        ? PortalContentItem.fromSopJson(json)
+        : PortalContentItem.fromRecipeJson(json);
+  }
+
+  Future<PortalContentItem> createPortalContent(
+    PortalContentMutation payload,
+  ) async {
+    final path =
+        payload.kind == PortalContentKind.sop
+            ? '/portal/sops'
+            : '/portal/recipes';
+    final key = payload.kind == PortalContentKind.sop ? 'sop' : 'recipe';
+    final res = await _send(
+      () => _dio.post<Map<String, Object?>>(path, data: payload.toJson()),
+    );
+    final json = _map(res.data?[key]);
+    return payload.kind == PortalContentKind.sop
+        ? PortalContentItem.fromSopJson(json)
+        : PortalContentItem.fromRecipeJson(json);
+  }
+
+  Future<PortalContentItem> updatePortalContent(
+    String id,
+    PortalContentMutation payload,
+  ) async {
+    final path =
+        payload.kind == PortalContentKind.sop
+            ? '/portal/sops/$id'
+            : '/portal/recipes/$id';
+    final key = payload.kind == PortalContentKind.sop ? 'sop' : 'recipe';
+    final res = await _send(
+      () => _dio.patch<Map<String, Object?>>(path, data: payload.toJson()),
+    );
+    final json = _map(res.data?[key]);
+    return payload.kind == PortalContentKind.sop
+        ? PortalContentItem.fromSopJson(json)
+        : PortalContentItem.fromRecipeJson(json);
+  }
+
+  Future<PortalContentItem> publishPortalContent(
+    PortalContentKind kind,
+    String id,
+  ) async {
+    return _togglePortalContent(kind, id, publish: true);
+  }
+
+  Future<PortalContentItem> unpublishPortalContent(
+    PortalContentKind kind,
+    String id,
+  ) async {
+    return _togglePortalContent(kind, id, publish: false);
+  }
+
+  Future<void> archivePortalContent(PortalContentKind kind, String id) async {
+    final path =
+        kind == PortalContentKind.sop
+            ? '/portal/sops/$id'
+            : '/portal/recipes/$id';
+    await _send(() => _dio.delete<Map<String, Object?>>(path));
+  }
+
+  Future<PortalContentItem> _togglePortalContent(
+    PortalContentKind kind,
+    String id, {
+    required bool publish,
+  }) async {
+    final noun = kind == PortalContentKind.sop ? 'sops' : 'recipes';
+    final key = kind == PortalContentKind.sop ? 'sop' : 'recipe';
+    final action = publish ? 'publish' : 'unpublish';
+    final res = await _send(
+      () => _dio.post<Map<String, Object?>>('/portal/$noun/$id/$action'),
+    );
+    final json = _map(res.data?[key]);
+    return kind == PortalContentKind.sop
+        ? PortalContentItem.fromSopJson(json)
+        : PortalContentItem.fromRecipeJson(json);
   }
 
   Future<Response<Map<String, Object?>>> _send(
@@ -199,4 +419,10 @@ class StaffApiClient {
         );
     }
   }
+}
+
+Map<String, Object?> _map(Object? value) {
+  if (value is Map<String, Object?>) return value;
+  if (value is Map) return value.cast<String, Object?>();
+  return const <String, Object?>{};
 }

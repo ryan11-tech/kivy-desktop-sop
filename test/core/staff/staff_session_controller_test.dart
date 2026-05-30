@@ -16,13 +16,12 @@ class _MockStore extends Mock implements SecureSessionStore {}
 
 class _MockConnectivity extends Mock implements ConnectivityProbe {}
 
-StaffUser _user({bool requiresPassword = false, bool requiresOtp = false}) {
+StaffUser _user({bool requiresPassword = false}) {
   return StaffUser(
     id: 'u1',
     email: 'a@b.c',
     displayName: 'A',
     requiresPasswordChange: requiresPassword,
-    requiresOtp: requiresOtp,
   );
 }
 
@@ -76,7 +75,7 @@ void main() {
     });
 
     test(
-      'offline with cached user + shops + active id -> ready offline',
+      'offline with cached user + shops + active id -> offlineBlocked',
       () async {
         when(() => connectivity.isOnline()).thenAnswer((_) async => false);
         when(() => store.readUser()).thenAnswer((_) async => _user());
@@ -87,8 +86,8 @@ void main() {
 
         await controller.bootstrap();
 
-        expect(controller.state.status, StaffSessionStatus.ready);
-        expect(controller.state.activeShop?.id, 's2');
+        expect(controller.state.status, StaffSessionStatus.offlineBlocked);
+        expect(controller.state.activeShop, isNull);
         expect(controller.state.offline, isTrue);
       },
     );
@@ -112,15 +111,6 @@ void main() {
       await controller.bootstrap();
 
       expect(controller.state.status, StaffSessionStatus.needsPasswordChange);
-    });
-
-    test('online + requiresOtp -> needsOtp', () async {
-      when(() => connectivity.isOnline()).thenAnswer((_) async => true);
-      when(() => api.me()).thenAnswer((_) async => _user(requiresOtp: true));
-
-      await controller.bootstrap();
-
-      expect(controller.state.status, StaffSessionStatus.needsOtp);
     });
 
     test('online + no shops -> blockedNoShops', () async {
@@ -192,6 +182,19 @@ void main() {
     );
   });
 
+  group('refreshSession', () {
+    test('checks the server again and advances to ready', () async {
+      when(() => connectivity.isOnline()).thenAnswer((_) async => true);
+      when(() => api.me()).thenAnswer((_) async => _user());
+      when(() => api.myShops()).thenAnswer((_) async => [_shop('only')]);
+
+      await controller.refreshSession();
+
+      expect(controller.state.status, StaffSessionStatus.ready);
+      expect(controller.state.activeShop?.id, 'only');
+    });
+  });
+
   group('login', () {
     test('login + requiresPasswordChange -> needsPasswordChange', () async {
       when(
@@ -206,19 +209,6 @@ void main() {
       await controller.login(email: 'a@b.c', password: 'x');
 
       expect(controller.state.status, StaffSessionStatus.needsPasswordChange);
-    });
-
-    test('login + requiresOtp -> needsOtp', () async {
-      when(
-        () => api.login(
-          email: any(named: 'email'),
-          password: any(named: 'password'),
-        ),
-      ).thenAnswer((_) async => LoginResult(user: _user(requiresOtp: true)));
-
-      await controller.login(email: 'a@b.c', password: 'x');
-
-      expect(controller.state.status, StaffSessionStatus.needsOtp);
     });
 
     test('login success + single shop -> ready', () async {

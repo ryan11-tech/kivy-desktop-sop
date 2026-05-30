@@ -128,4 +128,20 @@ void main() {
 
     expect(repo.calls, 1);
   });
+
+  test(
+    'force reloads the same shop so published updates can be fetched',
+    () async {
+      final repo = _FakeRepo()..byShop['s1'] = [_sop('a')];
+      final controller = SopCatalogController(repo);
+      const shop = Shop(id: 's1', name: 'S1');
+
+      await controller.loadForShop(shop);
+      repo.byShop['s1'] = [_sop('b')];
+      await controller.loadForShop(shop, force: true);
+
+      expect(repo.calls, 2);
+      expect(controller.groups.single.items.single.id, 'b');
+    },
+  );
 }

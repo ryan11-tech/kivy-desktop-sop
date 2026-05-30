@@ -4,13 +4,15 @@ import '../../theme/app_colors.dart';
 
 class PinScreen extends StatefulWidget {
   const PinScreen({
-    required this.correctPin,
+    required this.pinLength,
+    required this.onSubmit,
     required this.onSuccess,
     this.appTitle = 'Kitchen Guide',
     super.key,
   });
 
-  final String correctPin;
+  final int pinLength;
+  final Future<String?> Function(String pin) onSubmit;
   final VoidCallback onSuccess;
   final String appTitle;
 
@@ -21,11 +23,10 @@ class PinScreen extends StatefulWidget {
 class _PinScreenState extends State<PinScreen> {
   String _entered = '';
   String _errorMsg = '';
+  bool _submitting = false;
 
   @override
   Widget build(BuildContext context) {
-    final pinLen = widget.correctPin.length;
-
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -67,7 +68,7 @@ class _PinScreenState extends State<PinScreen> {
                     const SizedBox(height: 28),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(pinLen, (i) {
+                      children: List.generate(widget.pinLength, (i) {
                         final filled = i < _entered.length;
                         return Container(
                           margin: const EdgeInsets.symmetric(horizontal: 9),
@@ -91,24 +92,31 @@ class _PinScreenState extends State<PinScreen> {
                         style: const TextStyle(color: Colors.red, fontSize: 12),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 50),
-                      child: Column(
-                        children: [
-                          _KeyRow(keys: const ['1', '2', '3'], onTap: _onKey),
-                          const SizedBox(height: 12),
-                          _KeyRow(keys: const ['4', '5', '6'], onTap: _onKey),
-                          const SizedBox(height: 12),
-                          _KeyRow(keys: const ['7', '8', '9'], onTap: _onKey),
-                          const SizedBox(height: 12),
-                          _KeyRow(
-                            keys: const ['CLR', '0', 'DEL'],
-                            onTap: _onKey,
-                          ),
-                        ],
+                    if (_submitting)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 36),
+                        child: CircularProgressIndicator(
+                          color: AppColors.primary,
+                        ),
+                      )
+                    else
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 50),
+                        child: Column(
+                          children: [
+                            _KeyRow(keys: const ['1', '2', '3'], onTap: _onKey),
+                            const SizedBox(height: 12),
+                            _KeyRow(keys: const ['4', '5', '6'], onTap: _onKey),
+                            const SizedBox(height: 12),
+                            _KeyRow(keys: const ['7', '8', '9'], onTap: _onKey),
+                            const SizedBox(height: 12),
+                            _KeyRow(
+                              keys: const ['CLR', '0', 'DEL'],
+                              onTap: _onKey,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -120,6 +128,7 @@ class _PinScreenState extends State<PinScreen> {
   }
 
   void _onKey(String key) {
+    if (_submitting) return;
     setState(() {
       _errorMsg = '';
       if (key == 'CLR') {
@@ -129,20 +138,33 @@ class _PinScreenState extends State<PinScreen> {
           _entered = _entered.substring(0, _entered.length - 1);
         }
       } else {
-        if (_entered.length < widget.correctPin.length) {
+        if (_entered.length < widget.pinLength) {
           _entered += key;
         }
       }
+    });
 
-      if (_entered.length == widget.correctPin.length) {
-        if (_entered == widget.correctPin) {
-          _entered = '';
-          widget.onSuccess();
-        } else {
-          _errorMsg = 'Wrong PIN. Try again.';
-          _entered = '';
-        }
-      }
+    if (_entered.length == widget.pinLength) {
+      _submitPin(_entered);
+    }
+  }
+
+  Future<void> _submitPin(String pin) async {
+    setState(() => _submitting = true);
+    final error = await widget.onSubmit(pin);
+    if (!mounted) return;
+    if (error == null) {
+      setState(() {
+        _entered = '';
+        _submitting = false;
+      });
+      widget.onSuccess();
+      return;
+    }
+    setState(() {
+      _errorMsg = error;
+      _entered = '';
+      _submitting = false;
     });
   }
 }

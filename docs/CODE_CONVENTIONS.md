@@ -30,10 +30,11 @@
 
 ## State And Routing
 
-- Use Riverpod when app state moves beyond the current mock setup.
-- Use `go_router` when auth/no-access/main/detail routing becomes real.
-- Do not introduce Provider, BLoC, GetX, or a custom event bus.
-- Keep Firebase listeners in repositories or provider-backed controllers.
+- Current v1 state uses Provider and ChangeNotifier controllers.
+- Current v1 routing uses Material routes plus a shell scaffold for main tabs.
+- Do not introduce Riverpod, go_router, BLoC, GetX, or a custom event bus in
+  the backend API pass.
+- Keep Dio/backend API access in repositories or provider-backed controllers.
 
 ## UI
 
@@ -56,17 +57,13 @@
 
 Allowed planned dependencies from the PRD:
 
-- `firebase_core`
-- `firebase_auth`
-- `cloud_firestore`
-- `firebase_storage`
-- `cloud_functions`
-- `flutter_riverpod`
-- `go_router`
+- `dio`
+- `dio_cookie_manager`
+- `cookie_jar`
+- `provider`
 - `shared_preferences`
 - `flutter_secure_storage`
 - `connectivity_plus`
-- `cached_network_image`
 - `flutter_lints`
 
 Add them only when implementing the feature that needs them.

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../core/staff/staff_session_controller.dart';
 
 class NoAccessScreen extends StatelessWidget {
   const NoAccessScreen({required this.email, super.key});
@@ -19,12 +22,13 @@ class NoAccessScreen extends StatelessWidget {
             const Text('Ask an admin to grant access to this shop.'),
             const SizedBox(height: 24),
             FilledButton.icon(
-              onPressed: () {},
+              onPressed:
+                  () => context.read<StaffSessionController>().refreshSession(),
               icon: const Icon(Icons.refresh),
               label: const Text('Check again'),
             ),
             TextButton.icon(
-              onPressed: () {},
+              onPressed: () => context.read<StaffSessionController>().signOut(),
               icon: const Icon(Icons.logout),
               label: const Text('Sign out'),
             ),

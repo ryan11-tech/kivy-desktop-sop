@@ -61,8 +61,13 @@ const _dayFull = {
 // ── ScheduleScreen ────────────────────────────────────────────────────────────
 
 class ScheduleScreen extends StatefulWidget {
-  const ScheduleScreen({this.isAdmin = false, super.key});
+  const ScheduleScreen({
+    this.isAdmin = false,
+    this.embedded = false,
+    super.key,
+  });
   final bool isAdmin;
+  final bool embedded;
 
   @override
   State<ScheduleScreen> createState() => _ScheduleScreenState();
@@ -74,14 +79,14 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
   // Local state (Phase 1)
   final List<ShiftDef> _shifts = [
-    ShiftDef(
+    const ShiftDef(
       id: 'morning',
       name: 'Morning Shift',
       startTime: '07:00',
       endTime: '13:00',
       color: AppColors.gold,
     ),
-    ShiftDef(
+    const ShiftDef(
       id: 'evening',
       name: 'Evening Shift',
       startTime: '13:00',
@@ -91,8 +96,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   ];
 
   final List<StaffMember> _staff = [
-    StaffMember(id: 's1', name: 'Staff A'),
-    StaffMember(id: 's2', name: 'Staff B'),
+    const StaffMember(id: 's1', name: 'Staff A'),
+    const StaffMember(id: 's2', name: 'Staff B'),
   ];
 
   final Map<String, List<ShiftEntry>> _schedule = {
@@ -103,6 +108,26 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final body = Column(
+      children: [
+        const Divider(height: 1, color: AppColors.surfaceHigh),
+        _buildTabBar(),
+        const Divider(height: 1, color: AppColors.surfaceHigh),
+        Expanded(
+          child:
+              _tabIndex == 0
+                  ? _buildScheduleTab()
+                  : _tabIndex == 1
+                  ? _buildTasksTab()
+                  : _buildManageTab(),
+        ),
+      ],
+    );
+
+    if (widget.embedded) {
+      return ColoredBox(color: AppColors.background, child: body);
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -138,21 +163,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          const Divider(height: 1, color: AppColors.surfaceHigh),
-          _buildTabBar(),
-          const Divider(height: 1, color: AppColors.surfaceHigh),
-          Expanded(
-            child:
-                _tabIndex == 0
-                    ? _buildScheduleTab()
-                    : _tabIndex == 1
-                    ? _buildTasksTab()
-                    : _buildManageTab(),
-          ),
-        ],
-      ),
+      body: body,
     );
   }
 
@@ -278,7 +289,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         }),
 
         if ((_schedule[_activeDay] ?? []).isEmpty)
-          _EmptyState(
+          const _EmptyState(
             title: 'No shifts assigned',
             subtitle: 'Tap "+ Add Shift" below to assign one.',
           ),
@@ -310,7 +321,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
       children: [
         if (_tasks.isEmpty)
-          _EmptyState(
+          const _EmptyState(
             title: 'No tasks yet',
             subtitle: 'Admin can add tasks from this tab.',
           )
@@ -359,7 +370,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
       children: [
-        _SectionLabel(text: 'SHIFT TYPES'),
+        const _SectionLabel(text: 'SHIFT TYPES'),
         const SizedBox(height: 8),
 
         if (_shifts.isEmpty)
@@ -394,7 +405,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         ),
 
         const SizedBox(height: 24),
-        _SectionLabel(text: 'STAFF MEMBERS'),
+        const _SectionLabel(text: 'STAFF MEMBERS'),
         const SizedBox(height: 8),
 
         if (_staff.isEmpty)
@@ -429,7 +440,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         ),
 
         const SizedBox(height: 24),
-        _SectionLabel(text: 'DANGER ZONE'),
+        const _SectionLabel(text: 'DANGER ZONE'),
         const SizedBox(height: 8),
         ElevatedButton.icon(
           onPressed: () => _confirmClearWeek(context),
@@ -796,10 +807,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                               return GestureDetector(
                                 onTap:
                                     () => setLocal(() {
-                                      if (isSel)
+                                      if (isSel) {
                                         selectedDays.remove(d);
-                                      else
+                                      } else {
                                         selectedDays.add(d);
+                                      }
                                     }),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
@@ -881,7 +893,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               style: TextStyle(color: Colors.white),
             ),
             content: const Text(
-              "Clear all shifts for this week?\nThis cannot be undone.",
+              'Clear all shifts for this week?\nThis cannot be undone.',
               style: TextStyle(color: Colors.white60),
             ),
             actions: [
@@ -895,7 +907,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               ElevatedButton(
                 onPressed: () {
                   setState(() {
-                    for (final d in _days) _schedule[d]!.clear();
+                    for (final d in _days) {
+                      _schedule[d]!.clear();
+                    }
                   });
                   Navigator.pop(ctx);
                 },
@@ -1151,10 +1165,11 @@ class _ShiftCard extends StatelessWidget {
                         return GestureDetector(
                           onTap:
                               () => setLocal(() {
-                                if (isSel)
+                                if (isSel) {
                                   selected.remove(member.id);
-                                else
+                                } else {
                                   selected.add(member.id);
+                                }
                               }),
                           child: Container(
                             margin: const EdgeInsets.only(bottom: 8),
@@ -1398,10 +1413,11 @@ class _TaskCard extends StatelessWidget {
                         return GestureDetector(
                           onTap:
                               () => setLocal(() {
-                                if (isSel)
+                                if (isSel) {
                                   selected.remove(member.id);
-                                else
+                                } else {
                                   selected.add(member.id);
+                                }
                               }),
                           child: Container(
                             margin: const EdgeInsets.only(bottom: 8),

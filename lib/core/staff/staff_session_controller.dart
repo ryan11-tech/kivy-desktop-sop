@@ -46,34 +46,14 @@ class StaffSessionController extends ChangeNotifier {
 
   /// Called once at app start. Resolves where the user should land.
   Future<void> bootstrap() async {
-    final cachedUser = await _store.readUser();
-    final cachedShops = await _store.readShops();
-    final cachedActiveId = await _store.readActiveShopId();
-
     final online = await _connectivity.isOnline();
     if (!online) {
-      if (cachedUser != null && cachedShops.isNotEmpty) {
-        final active = _resolveActive(cachedShops, cachedActiveId);
-        _emit(
-          StaffSessionState(
-            status:
-                active == null
-                    ? StaffSessionStatus.needsShopSelection
-                    : StaffSessionStatus.ready,
-            user: cachedUser,
-            shops: cachedShops,
-            activeShop: active,
-            offline: true,
-          ),
-        );
-      } else {
-        _emit(
-          _state.copyWith(
-            status: StaffSessionStatus.offlineBlocked,
-            offline: true,
-          ),
-        );
-      }
+      _emit(
+        _state.copyWith(
+          status: StaffSessionStatus.offlineBlocked,
+          offline: true,
+        ),
+      );
       return;
     }
 
@@ -95,16 +75,6 @@ class StaffSessionController extends ChangeNotifier {
       );
       return;
     }
-    if (result.user.requiresOtp) {
-      _emit(
-        _state.copyWith(
-          status: StaffSessionStatus.needsOtp,
-          user: result.user,
-          clearError: true,
-        ),
-      );
-      return;
-    }
     await _loadShopsAndAdvance(result.user);
   }
 
@@ -116,11 +86,6 @@ class StaffSessionController extends ChangeNotifier {
       currentPassword: currentPassword,
       newPassword: newPassword,
     );
-    await _refreshFromServer();
-  }
-
-  Future<void> submitOtp({required String code}) async {
-    await _api.verifyEmailOtp(code: code);
     await _refreshFromServer();
   }
 
@@ -142,6 +107,21 @@ class StaffSessionController extends ChangeNotifier {
     await bootstrap();
   }
 
+  Future<void> refreshSession() async {
+    _emit(const StaffSessionState.initializing());
+    final online = await _connectivity.isOnline();
+    if (!online) {
+      _emit(
+        _state.copyWith(
+          status: StaffSessionStatus.offlineBlocked,
+          offline: true,
+        ),
+      );
+      return;
+    }
+    await _refreshFromServer();
+  }
+
   // ── Internals ────────────────────────────────────────────────────────────
 
   Future<void> _refreshFromServer() async {
@@ -152,17 +132,6 @@ class StaffSessionController extends ChangeNotifier {
         _emit(
           _state.copyWith(
             status: StaffSessionStatus.needsPasswordChange,
-            user: user,
-            offline: false,
-            clearError: true,
-          ),
-        );
-        return;
-      }
-      if (user.requiresOtp) {
-        _emit(
-          _state.copyWith(
-            status: StaffSessionStatus.needsOtp,
             user: user,
             offline: false,
             clearError: true,

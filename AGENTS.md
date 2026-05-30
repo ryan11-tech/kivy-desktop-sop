@@ -150,9 +150,9 @@ unless the user specifically asks for legacy reference work.
 
 - Flutter stable, currently Flutter 3.41.6 with Dart 3.11.4.
 - Material 3.
-- Firebase later: `firebase_core`, `firebase_auth`, `cloud_firestore`,
-  `firebase_storage`, and `cloud_functions`.
-- Planned state/routing: Riverpod and `go_router`.
+- Active backend integration: Zin Mae API through Dio with persisted cookies.
+- Firebase, Riverpod, and `go_router` are future-only unless explicitly
+  requested.
 - No SQLite, no local JSON datastore, no offline-first database in v1.
 
 ## Architecture
@@ -165,9 +165,13 @@ lib/
     app_colors.dart
     app_theme.dart
   core/
+    api/
     auth/
     firestore/
     models/
+    recipes/
+    sops/
+    staff/
     search/
   features/
     auth/
@@ -184,8 +188,10 @@ lib/
 
 Rules:
 
-- Screens and widgets do not import Firebase SDK packages.
-- Repositories are the only client layer that knows Firebase collection paths.
+- Screens and widgets do not create HTTP clients or import future Firebase SDK
+  packages.
+- Repositories and `StaffApiClient` are the only client layers that know
+  backend paths.
 - Controllers/providers own app state and workflow decisions.
 - Models own serialization, parsing, validation, and small domain helpers.
 - UI must read `contentType`; never infer recipe vs SOP from populated fields.
@@ -194,7 +200,7 @@ Rules:
 ## Product Source Of Truth
 
 - `PRD-flutter.md` defines product behavior.
-- `ARCHITECTURE-flutter.md` defines the Firebase and client architecture.
+- `ARCHITECTURE-flutter.md` defines the backend API and client architecture.
 - `docs/CODE_CONVENTIONS.md` defines code quality standards.
 - `docs/AI_CODING_RULES.md` defines guardrails for AI-assisted coding.
 
