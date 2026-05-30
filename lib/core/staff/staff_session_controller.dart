@@ -46,34 +46,14 @@ class StaffSessionController extends ChangeNotifier {
 
   /// Called once at app start. Resolves where the user should land.
   Future<void> bootstrap() async {
-    final cachedUser = await _store.readUser();
-    final cachedShops = await _store.readShops();
-    final cachedActiveId = await _store.readActiveShopId();
-
     final online = await _connectivity.isOnline();
     if (!online) {
-      if (cachedUser != null && cachedShops.isNotEmpty) {
-        final active = _resolveActive(cachedShops, cachedActiveId);
-        _emit(
-          StaffSessionState(
-            status:
-                active == null
-                    ? StaffSessionStatus.needsShopSelection
-                    : StaffSessionStatus.ready,
-            user: cachedUser,
-            shops: cachedShops,
-            activeShop: active,
-            offline: true,
-          ),
-        );
-      } else {
-        _emit(
-          _state.copyWith(
-            status: StaffSessionStatus.offlineBlocked,
-            offline: true,
-          ),
-        );
-      }
+      _emit(
+        _state.copyWith(
+          status: StaffSessionStatus.offlineBlocked,
+          offline: true,
+        ),
+      );
       return;
     }
 
@@ -125,6 +105,21 @@ class StaffSessionController extends ChangeNotifier {
   Future<void> retryBootstrap() async {
     _emit(const StaffSessionState.initializing());
     await bootstrap();
+  }
+
+  Future<void> refreshSession() async {
+    _emit(const StaffSessionState.initializing());
+    final online = await _connectivity.isOnline();
+    if (!online) {
+      _emit(
+        _state.copyWith(
+          status: StaffSessionStatus.offlineBlocked,
+          offline: true,
+        ),
+      );
+      return;
+    }
+    await _refreshFromServer();
   }
 
   // ── Internals ────────────────────────────────────────────────────────────

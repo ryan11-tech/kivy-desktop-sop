@@ -5,6 +5,8 @@ class StaffUser {
     required this.email,
     required this.displayName,
     required this.requiresPasswordChange,
+    this.accountRole = 'staff',
+    this.staffProfileId = '',
   });
 
   factory StaffUser.fromJson(Map<String, Object?> json) {
@@ -14,6 +16,24 @@ class StaffUser {
       displayName:
           json['displayName'] as String? ?? json['name'] as String? ?? '',
       requiresPasswordChange: json['requiresPasswordChange'] as bool? ?? false,
+      accountRole: json['accountRole'] as String? ?? 'staff',
+      staffProfileId: json['staffProfileId'] as String? ?? '',
+    );
+  }
+
+  factory StaffUser.fromStaffSessionJson(Map<String, Object?> json) {
+    final user = _readMap(json['user']);
+    final staffProfile = _readMap(json['staffProfile']);
+    return StaffUser(
+      id: user['id'] as String? ?? staffProfile['userId'] as String? ?? '',
+      email: user['email'] as String? ?? '',
+      displayName: user['name'] as String? ?? '',
+      requiresPasswordChange: json['requiresPasswordChange'] as bool? ?? false,
+      accountRole:
+          json['accountRole'] as String? ??
+          staffProfile['accountRole'] as String? ??
+          'staff',
+      staffProfileId: staffProfile['id'] as String? ?? '',
     );
   }
 
@@ -21,14 +41,26 @@ class StaffUser {
   final String email;
   final String displayName;
   final bool requiresPasswordChange;
+  final String accountRole;
+  final String staffProfileId;
 
-  StaffUser copyWith({bool? requiresPasswordChange}) {
+  bool get isAdmin => accountRole == 'admin';
+
+  StaffUser copyWith({
+    String? email,
+    String? displayName,
+    bool? requiresPasswordChange,
+    String? accountRole,
+    String? staffProfileId,
+  }) {
     return StaffUser(
       id: id,
-      email: email,
-      displayName: displayName,
+      email: email ?? this.email,
+      displayName: displayName ?? this.displayName,
       requiresPasswordChange:
           requiresPasswordChange ?? this.requiresPasswordChange,
+      accountRole: accountRole ?? this.accountRole,
+      staffProfileId: staffProfileId ?? this.staffProfileId,
     );
   }
 
@@ -38,6 +70,14 @@ class StaffUser {
       'email': email,
       'displayName': displayName,
       'requiresPasswordChange': requiresPasswordChange,
+      'accountRole': accountRole,
+      'staffProfileId': staffProfileId,
     };
   }
+}
+
+Map<String, Object?> _readMap(Object? value) {
+  if (value is Map<String, Object?>) return value;
+  if (value is Map) return value.cast<String, Object?>();
+  return const <String, Object?>{};
 }

@@ -6,7 +6,9 @@ class AuthGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      body: Center(child: Text('Firebase auth gate placeholder')),
+      body: Center(
+        child: Text('Backend API auth is handled by StaffAuthRouter'),
+      ),
     );
   }
 }

@@ -9,6 +9,13 @@ Gmail/email accounts can access the shop.
 This PRD is the source of truth for the new Flutter build. It does not depend
 on the existing Kivy codebase or JSON schema.
 
+Implementation status for the current v1 app: the codebase uses the Zin Mae
+backend API through Dio cookies and Provider/ChangeNotifier controllers. Staff
+catalog browsing, refresh, local settings, local favorites, and local PIN unlock
+are supported. Admin user-access and basic recipe/SOP CRUD are wired to the
+existing backend portal APIs. Rich media management, advanced content editing,
+and final manual E2E signoff remain outside this code-cleanup pass.
+
 ---
 
 ## 1. Goals
@@ -890,9 +897,9 @@ No shared staff PIN verification endpoint is needed in this version.
   - PostgreSQL
   - Better Auth
   - backend-managed media storage
-- HTTP API client: choose `http` or `dio` when implementing the API layer.
-- State management: Riverpod.
-- Routing: `go_router`.
+- HTTP API client: Dio with persisted backend cookies.
+- State management: Provider and ChangeNotifier.
+- Routing: Material routes plus a main shell for Home/Favorites/Schedule/Settings.
 - Models: `freezed` + `json_serializable`, or hand-written serializers if the
   project wants less generated code.
 - Local device settings: `shared_preferences`.
@@ -900,10 +907,9 @@ No shared staff PIN verification endpoint is needed in this version.
 - Secure API session storage: `flutter_secure_storage` if the mobile auth flow
   uses bearer/session tokens instead of platform-managed cookies.
 - Connectivity state: `connectivity_plus`.
-- Image loading/cache: `cached_network_image`.
 - Lints: `flutter_lints`.
 
-Do not mix Riverpod and Provider.
+Do not migrate to Riverpod or go_router in the current backend API pass.
 
 ---
 
@@ -1021,4 +1027,5 @@ Minimum tests:
 
 - Should Google Sign-In be added, or is Gmail/email + password enough for v1?
 - Should SOPs ever support a multiplier, or are SOP quantities always fixed?
-- What is the exact bootstrap admin Gmail/email for the prototype?
+- What production process should create the first admin now that the temporary
+  unauthenticated bootstrap endpoint has been removed?

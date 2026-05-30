@@ -23,17 +23,18 @@ import '../settings/settings_screen.dart';
 enum HomeSegment { sop, recipe }
 
 class HomeScreen extends StatefulWidget {
-  HomeScreen({
-    FavoritesRepository? favoritesRepository,
-    // Staff app is read-only — content editing lives in the portal. Default to
-    // a staff identity so admin-only affordances (FAB, edit/delete) stay hidden.
+  const HomeScreen({
+    required this.favoritesRepository,
+    // Real admin/staff state comes from the session. This fallback keeps tests
+    // and preview harnesses in staff mode unless they pass an explicit member.
     this.member = DemoAccounts.staff,
+    this.onLock,
     super.key,
-  }) : favoritesRepository =
-           favoritesRepository ?? InMemoryFavoritesRepository();
+  });
 
   final FavoritesRepository favoritesRepository;
   final Member member;
+  final VoidCallback? onLock;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -45,10 +46,10 @@ class _HomeScreenState extends State<HomeScreen> {
   RecipeCatalogController? _recipeCatalog;
   StaffSessionController? _session;
   Set<String> _favoriteIds = {};
+  String? _favoriteScopeKey;
   int _navIndex = 0;
   HomeSegment _segment = HomeSegment.sop;
   bool _showSearch = false;
-  bool _favoritesRequested = false;
 
   @override
   void didChangeDependencies() {
@@ -65,19 +66,14 @@ class _HomeScreenState extends State<HomeScreen> {
       _session = session..addListener(_onSessionChanged);
     }
 
-    if (!_favoritesRequested) {
-      _favoritesRequested = true;
-      widget.favoritesRepository.loadFavoriteIds(widget.member.uid).then((ids) {
-        if (mounted) {
-          setState(() => _favoriteIds = {...ids});
-        }
-      });
-    }
-
     _syncShop();
+    _syncFavorites();
   }
 
-  void _onSessionChanged() => _syncShop();
+  void _onSessionChanged() {
+    _syncShop();
+    _syncFavorites();
+  }
 
   void _onCatalogChanged() {
     if (mounted) {
@@ -91,6 +87,16 @@ class _HomeScreenState extends State<HomeScreen> {
     final shop = _session?.state.activeShop;
     _catalog?.loadForShop(shop);
     _recipeCatalog?.loadForShop(shop);
+  }
+
+  void _syncFavorites() {
+    final scopeKey = _currentFavoriteScopeKey;
+    if (scopeKey == _favoriteScopeKey) return;
+    _favoriteScopeKey = scopeKey;
+    widget.favoritesRepository.loadFavoriteIds(_favoritesUserId).then((ids) {
+      if (!mounted || _favoriteScopeKey != scopeKey) return;
+      setState(() => _favoriteIds = {...ids});
+    });
   }
 
   @override
@@ -115,27 +121,13 @@ class _HomeScreenState extends State<HomeScreen> {
               ? const Center(
                 child: CircularProgressIndicator(color: AppColors.primary),
               )
-              : Column(
-                children: [
-                  _buildSegmentBar(),
-                  Expanded(child: _buildBody()),
-                ],
-              ),
+              : _buildSelectedPage(),
       bottomNavigationBar: _buildBottomNav(),
-      floatingActionButton:
-          widget.member.isAdmin && _navIndex == 0
-              ? FloatingActionButton.extended(
-                onPressed: () {},
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                icon: const Icon(Icons.add),
-                label: const Text('Add Category'),
-              )
-              : null,
     );
   }
 
   AppBar _buildAppBar() {
+    final member = _effectiveMember;
     return AppBar(
       backgroundColor: AppColors.background,
       leading: IconButton(
@@ -143,7 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
         onPressed: _openDrawer,
       ),
       title:
-          _showSearch
+          _showSearch && _isCatalogTab
               ? TextField(
                 controller: _searchController,
                 autofocus: true,
@@ -167,30 +159,36 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   Text(
-                    _navIndex == 1
-                        ? 'Favorites'
-                        : (_segment == HomeSegment.sop
-                            ? 'Food & Beverage SOP'
-                            : 'Recipes'),
+                    _titleForActiveTab(),
                     style: const TextStyle(color: Colors.white54, fontSize: 11),
                   ),
                 ],
               ),
       actions: [
-        IconButton(
-          icon: Icon(
-            _showSearch ? Icons.close : Icons.search,
-            color: Colors.white,
+        if (_isCatalogTab) ...[
+          IconButton(
+            tooltip:
+                _segment == HomeSegment.sop
+                    ? 'Refresh SOPs'
+                    : 'Refresh recipes',
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: _currentCatalogIsLoading ? null : _refreshCurrentCatalog,
           ),
-          onPressed: () {
-            setState(() {
-              _showSearch = !_showSearch;
-              if (!_showSearch) {
-                _searchController.clear();
-              }
-            });
-          },
-        ),
+          IconButton(
+            icon: Icon(
+              _showSearch ? Icons.close : Icons.search,
+              color: Colors.white,
+            ),
+            onPressed: () {
+              setState(() {
+                _showSearch = !_showSearch;
+                if (!_showSearch) {
+                  _searchController.clear();
+                }
+              });
+            },
+          ),
+        ],
         Container(
           margin: const EdgeInsets.only(right: 8),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -199,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen> {
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
-            widget.member.isAdmin ? 'ADMIN' : 'STAFF',
+            member.isAdmin ? 'ADMIN' : 'STAFF',
             style: const TextStyle(
               color: Colors.white,
               fontSize: 11,
@@ -209,6 +207,72 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ],
     );
+  }
+
+  bool get _currentCatalogIsLoading {
+    if (!_isCatalogTab) return false;
+    final status =
+        _segment == HomeSegment.sop ? _catalog?.status : _recipeCatalog?.status;
+    return status == SopCatalogStatus.loading;
+  }
+
+  bool get _isCatalogTab => _navIndex == 0 || _navIndex == 1;
+
+  String get _favoritesUserId => _session?.state.user?.id ?? widget.member.uid;
+
+  Member get _effectiveMember =>
+      _session?.state.user?.isAdmin == true
+          ? DemoAccounts.admin
+          : widget.member;
+
+  String get _currentFavoriteScopeKey {
+    final shopId = _session?.state.activeShop?.id ?? 'no-shop';
+    return '$_favoritesUserId::$shopId';
+  }
+
+  String _titleForActiveTab() {
+    return switch (_navIndex) {
+      1 => 'Favorites',
+      2 => 'Staff Schedule',
+      3 => 'Settings',
+      _ => _segment == HomeSegment.sop ? 'Food & Beverage SOP' : 'Recipes',
+    };
+  }
+
+  Widget _buildSelectedPage() {
+    final member = _effectiveMember;
+    if (_navIndex == 2) {
+      return ScheduleScreen(isAdmin: member.isAdmin, embedded: true);
+    }
+    if (_navIndex == 3) {
+      return SettingsScreen(isAdmin: member.isAdmin, embedded: true);
+    }
+    return Column(
+      children: [_buildSegmentBar(), Expanded(child: _buildRefreshableBody())],
+    );
+  }
+
+  Widget _buildRefreshableBody() {
+    return RefreshIndicator(
+      color: AppColors.primary,
+      backgroundColor: AppColors.surface,
+      onRefresh: _refreshCurrentCatalog,
+      child: _buildBody(),
+    );
+  }
+
+  Future<void> _refreshCurrentCatalog() async {
+    final shop = _session?.state.activeShop;
+    if (shop == null) {
+      _syncShop();
+      return;
+    }
+
+    if (_segment == HomeSegment.sop) {
+      await _catalog?.loadForShop(shop, force: true);
+    } else {
+      await _recipeCatalog?.loadForShop(shop, force: true);
+    }
   }
 
   Widget _buildSegmentBar() {
@@ -294,7 +358,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildGroupList(List<SopGroup> groups) {
+    final member = _effectiveMember;
     return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 100),
       itemCount: groups.length,
       separatorBuilder: (_, _) => const SizedBox(height: 12),
@@ -306,7 +372,7 @@ class _HomeScreenState extends State<HomeScreen> {
           items: group.items,
           unitLabel: _segment == HomeSegment.sop ? 'SOPs' : 'recipes',
           favoriteIds: _favoriteIds,
-          member: widget.member,
+          member: member,
           onToggleFavorite: _toggleFavorite,
           onOpenCategory:
               () => Navigator.of(context).push(
@@ -315,49 +381,32 @@ class _HomeScreenState extends State<HomeScreen> {
                       (_) => CategoryScreen(
                         category: category,
                         items: group.items,
-                        member: widget.member,
+                        member: member,
                         favoriteIds: _favoriteIds,
                         onToggleFavorite: _toggleFavorite,
                       ),
                 ),
               ),
-          onEdit: widget.member.isAdmin ? () {} : null,
-          onDelete: widget.member.isAdmin ? () {} : null,
         );
       },
     );
   }
 
   Widget _buildFavoritesView(List<SopGroup> groups) {
+    final member = _effectiveMember;
     final favItems =
         _flatItems(groups).where((i) => _favoriteIds.contains(i.id)).toList();
 
     if (favItems.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.star_border, size: 48, color: Colors.white24),
-            SizedBox(height: 12),
-            Text(
-              'No favorites yet',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Tap the star on any SOP to save it.',
-              style: TextStyle(color: Colors.white38, fontSize: 13),
-            ),
-          ],
-        ),
+      return const _MessageView(
+        icon: Icons.star_border,
+        title: 'No favorites yet',
+        message: 'Tap the star on any SOP or recipe to save it.',
       );
     }
 
     return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 100),
       itemCount: favItems.length,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
@@ -367,7 +416,7 @@ class _HomeScreenState extends State<HomeScreen> {
           item: item,
           category: null,
           isFavorite: true,
-          member: widget.member,
+          member: member,
           onToggleFavorite: _toggleFavorite,
         );
       },
@@ -375,6 +424,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSearchResults(List<SopGroup> groups, String query) {
+    final member = _effectiveMember;
     final results = searchContentItems(
       items: _flatItems(groups),
       categoriesById: const <String, Category>{},
@@ -382,22 +432,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     if (results.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.search_off, size: 48, color: Colors.white24),
-            SizedBox(height: 12),
-            Text(
-              'No results found.',
-              style: TextStyle(color: Colors.white, fontSize: 16),
-            ),
-          ],
-        ),
+      return const _MessageView(
+        icon: Icons.search_off,
+        title: 'No results found',
+        message: 'Try another name, ingredient, or step.',
       );
     }
 
     return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 100),
       itemCount: results.length,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
@@ -407,7 +450,7 @@ class _HomeScreenState extends State<HomeScreen> {
           item: item,
           category: null,
           isFavorite: _favoriteIds.contains(item.id),
-          member: widget.member,
+          member: member,
           onToggleFavorite: _toggleFavorite,
         );
       },
@@ -426,23 +469,7 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedItemColor: AppColors.primary,
         unselectedItemColor: Colors.white38,
         type: BottomNavigationBarType.fixed,
-        onTap: (index) {
-          if (index == 2) {
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => ScheduleScreen(isAdmin: widget.member.isAdmin),
-              ),
-            );
-          } else if (index == 3) {
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => SettingsScreen(isAdmin: widget.member.isAdmin),
-              ),
-            );
-          } else {
-            setState(() => _navIndex = index);
-          }
-        },
+        onTap: (index) => setState(() => _navIndex = index),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.star), label: 'Favorites'),
@@ -460,6 +487,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openDrawer() {
+    final member = _effectiveMember;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.surface,
@@ -468,10 +496,32 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       builder:
           (context) => _DrawerMenu(
-            member: widget.member,
-            onClose: () => Navigator.pop(context),
+            member: member,
+            onHome: () => _selectMainTab(0),
+            onFavorites: () => _selectMainTab(1),
+            onSchedule: () => _selectMainTab(2),
+            onSettings: () => _selectMainTab(3),
+            onLock: widget.onLock == null ? null : _lockApp,
+            onSignOut: _signOut,
           ),
     );
+  }
+
+  void _selectMainTab(int index) {
+    Navigator.of(context).pop();
+    setState(() => _navIndex = index);
+  }
+
+  void _lockApp() {
+    Navigator.of(context).pop();
+    widget.onLock?.call();
+  }
+
+  Future<void> _signOut() async {
+    Navigator.of(context).pop();
+    await context.read<StaffSessionController>().signOut();
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   // Synthesizes a display category from a SOP-type group so the existing
@@ -493,7 +543,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _favoriteIds.remove(itemId);
       }
     });
-    widget.favoritesRepository.saveFavoriteIds(widget.member.uid, _favoriteIds);
+    widget.favoritesRepository.saveFavoriteIds(_favoritesUserId, _favoriteIds);
   }
 }
 
@@ -514,44 +564,57 @@ class _MessageView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 48, color: Colors.white24),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              style: const TextStyle(color: Colors.white38, fontSize: 13),
-              textAlign: TextAlign.center,
-            ),
-            if (onRetry != null) ...[
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: onRetry,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 48, color: Colors.white24),
+                    const SizedBox(height: 12),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      message,
+                      style: const TextStyle(
+                        color: Colors.white38,
+                        fontSize: 13,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    if (onRetry != null) ...[
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: onRetry,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                        ),
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Retry'),
+                      ),
+                    ],
+                  ],
                 ),
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
               ),
-            ],
-          ],
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -567,8 +630,6 @@ class _CategoryCard extends StatelessWidget {
     required this.member,
     required this.onToggleFavorite,
     required this.onOpenCategory,
-    this.onEdit,
-    this.onDelete,
   });
 
   final Category category;
@@ -578,8 +639,6 @@ class _CategoryCard extends StatelessWidget {
   final Member member;
   final void Function(String, bool) onToggleFavorite;
   final VoidCallback onOpenCategory;
-  final VoidCallback? onEdit;
-  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -687,30 +746,6 @@ class _CategoryCard extends StatelessWidget {
                 ),
               ),
             ),
-
-          // Admin actions
-          if (member.isAdmin) ...[
-            const Divider(height: 1, color: AppColors.surfaceHigh),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  _ActionBtn(
-                    icon: Icons.edit_outlined,
-                    color: AppColors.primary,
-                    onTap: onEdit ?? () {},
-                  ),
-                  const SizedBox(width: 8),
-                  _ActionBtn(
-                    icon: Icons.delete_outline,
-                    color: Colors.red,
-                    onTap: onDelete ?? () {},
-                  ),
-                ],
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -776,102 +811,103 @@ class _ItemRow extends StatelessWidget {
   }
 }
 
-// ── Action Button ─────────────────────────────────────────────────────────────
-
-class _ActionBtn extends StatelessWidget {
-  const _ActionBtn({
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: AppColors.surfaceHigh,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(icon, color: color, size: 16),
-      ),
-    );
-  }
-}
-
 // ── Drawer Menu ───────────────────────────────────────────────────────────────
 
 class _DrawerMenu extends StatelessWidget {
-  const _DrawerMenu({required this.member, required this.onClose});
+  const _DrawerMenu({
+    required this.member,
+    required this.onHome,
+    required this.onFavorites,
+    required this.onSchedule,
+    required this.onSettings,
+    required this.onSignOut,
+    this.onLock,
+  });
 
   final Member member;
-  final VoidCallback onClose;
+  final VoidCallback onHome;
+  final VoidCallback onFavorites;
+  final VoidCallback onSchedule;
+  final VoidCallback onSettings;
+  final VoidCallback? onLock;
+  final Future<void> Function() onSignOut;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
+    return SafeArea(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.local_cafe, color: Colors.white),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Row(
                 children: [
-                  const Text(
-                    'Kitchen Guide',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(12),
                     ),
+                    child: const Icon(Icons.local_cafe, color: Colors.white),
                   ),
-                  Text(
-                    member.isAdmin ? 'Admin Mode' : 'Staff Mode',
-                    style: const TextStyle(color: Colors.white38, fontSize: 12),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Kitchen Guide',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        member.isAdmin ? 'Admin Mode' : 'Staff Mode',
+                        style: const TextStyle(
+                          color: Colors.white38,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
+              const SizedBox(height: 20),
+              const Divider(color: AppColors.surfaceHigh),
+              _DrawerItem(icon: Icons.home, label: 'Home', onTap: onHome),
+              _DrawerItem(
+                icon: Icons.star,
+                label: 'Favorites',
+                onTap: onFavorites,
+              ),
+              _DrawerItem(
+                icon: Icons.schedule,
+                label: 'Schedule',
+                onTap: onSchedule,
+              ),
+              _DrawerItem(
+                icon: Icons.settings,
+                label: 'Settings',
+                onTap: onSettings,
+              ),
+              if (onLock != null)
+                _DrawerItem(
+                  icon: Icons.lock_outline,
+                  label: 'Lock',
+                  onTap: onLock!,
+                ),
+              const Divider(color: AppColors.surfaceHigh),
+              _DrawerItem(
+                icon: Icons.logout,
+                label: 'Sign out',
+                onTap: () => onSignOut(),
+              ),
             ],
           ),
-          const SizedBox(height: 20),
-          const Divider(color: AppColors.surfaceHigh),
-          _DrawerItem(icon: Icons.home, label: 'Home', onTap: onClose),
-          _DrawerItem(icon: Icons.star, label: 'Favorites', onTap: onClose),
-          _DrawerItem(icon: Icons.schedule, label: 'Schedule', onTap: onClose),
-          _DrawerItem(icon: Icons.settings, label: 'Settings', onTap: onClose),
-          _DrawerItem(icon: Icons.lock_outline, label: 'Lock', onTap: onClose),
-          if (member.isAdmin)
-            _DrawerItem(
-              icon: Icons.admin_panel_settings,
-              label: 'Admin Mode',
-              onTap: onClose,
-            ),
-          const Divider(color: AppColors.surfaceHigh),
-          _DrawerItem(
-            icon: Icons.info_outline,
-            label: 'About  v2.0',
-            onTap: onClose,
-          ),
-        ],
+        ),
       ),
     );
   }

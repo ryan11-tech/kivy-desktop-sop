@@ -14,7 +14,13 @@ const _knownRecipeTypeLabels = <String, String>{
 };
 
 // Display order for known types; unknown custom types sort alphabetically after.
-const _knownRecipeTypeOrder = <String>['drink', 'base', 'food', 'prep', 'other'];
+const _knownRecipeTypeOrder = <String>[
+  'drink',
+  'base',
+  'food',
+  'prep',
+  'other',
+];
 
 const _fallbackRecipeTypeKey = 'other';
 

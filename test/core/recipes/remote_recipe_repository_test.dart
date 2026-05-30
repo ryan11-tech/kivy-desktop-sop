@@ -31,9 +31,9 @@ ContentItem _recipe(String id, int order) {
 void main() {
   test('calls listShopRecipes and sorts by order', () async {
     final api = _MockApi();
-    when(
-      () => api.listShopRecipes('shop-1'),
-    ).thenAnswer((_) async => [_recipe('b', 30), _recipe('a', 10), _recipe('c', 20)]);
+    when(() => api.listShopRecipes('shop-1')).thenAnswer(
+      (_) async => [_recipe('b', 30), _recipe('a', 10), _recipe('c', 20)],
+    );
 
     final repo = RemoteRecipeRepository(api);
     final items = await repo.listShopRecipes('shop-1');

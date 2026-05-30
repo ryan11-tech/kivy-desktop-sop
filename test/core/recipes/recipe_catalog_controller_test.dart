@@ -4,7 +4,8 @@ import 'package:zinme_app/core/models/content_item.dart';
 import 'package:zinme_app/core/models/parameter.dart';
 import 'package:zinme_app/core/recipes/recipe_catalog_controller.dart';
 import 'package:zinme_app/core/recipes/recipe_repository.dart';
-import 'package:zinme_app/core/sops/sop_catalog_controller.dart' show SopCatalogStatus;
+import 'package:zinme_app/core/sops/sop_catalog_controller.dart'
+    show SopCatalogStatus;
 import 'package:zinme_app/core/staff/shop.dart';
 
 class _FakeRepo implements RecipeRepository {
@@ -130,4 +131,20 @@ void main() {
 
     expect(repo.calls, 1);
   });
+
+  test(
+    'force reloads the same shop so published updates can be fetched',
+    () async {
+      final repo = _FakeRepo()..byShop['s1'] = [_recipe('a')];
+      final controller = RecipeCatalogController(repo);
+      const shop = Shop(id: 's1', name: 'S1');
+
+      await controller.loadForShop(shop);
+      repo.byShop['s1'] = [_recipe('b')];
+      await controller.loadForShop(shop, force: true);
+
+      expect(repo.calls, 2);
+      expect(controller.groups.single.items.single.id, 'b');
+    },
+  );
 }

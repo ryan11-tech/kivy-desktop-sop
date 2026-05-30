@@ -1,7 +1,9 @@
-# Firebase Setup Placeholder
+# Firebase Setup Historical Placeholder
 
-Firebase is intentionally not wired in this initial Flutter scaffold. Use this
-sequence when the project is ready for backend integration.
+Firebase is intentionally not wired into the current v1 app. The active stack is
+Zin Mae backend API + Dio cookies + Provider/ChangeNotifier. Use this file only
+as historical planning context if a future Firebase migration is explicitly
+approved.
 
 ## Planned Services
 

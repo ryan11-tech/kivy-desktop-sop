@@ -55,7 +55,10 @@ void main() {
     ];
 
     for (final error in errors) {
-      final repo = FallbackRecipeRepository(_ThrowingRepo(error), useMock: true);
+      final repo = FallbackRecipeRepository(
+        _ThrowingRepo(error),
+        useMock: true,
+      );
       await expectLater(
         () => repo.listShopRecipes('shop-1'),
         throwsA(isA<ApiException>()),

@@ -1,14 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/auth/pin_credential_store.dart';
+import '../../core/auth/pin_lock_service.dart';
+import '../../core/preferences/user_preferences.dart';
+import '../../core/preferences/user_preferences_controller.dart';
 import '../../core/staff/staff_session_controller.dart';
 import '../../theme/app_colors.dart';
+import '../admin_users/admin_users_screen.dart';
+import '../item_form/content_form_screen.dart';
 import '../staff_auth/shop_selection_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({this.isAdmin = false, super.key});
+  const SettingsScreen({
+    this.isAdmin = false,
+    this.embedded = false,
+    super.key,
+  });
 
   final bool isAdmin;
+  final bool embedded;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -20,9 +32,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _fontSize = 'Medium';
   String _language = 'English';
   bool _pinEnabled = true;
+  bool _loadingPreferences = true;
+  bool _savingSettings = false;
+  bool _signingOut = false;
+  String? _loadedUserId;
 
   late final TextEditingController _primaryHexController =
       TextEditingController(text: _primaryHex);
+
+  final PinLockService _pinLockService = const PinLockService();
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final userId = context.watch<StaffSessionController>().state.user?.id;
+    if (userId != null && userId != _loadedUserId) {
+      _loadedUserId = userId;
+      _loadPreferences(userId);
+    }
+  }
 
   @override
   void dispose() {
@@ -36,6 +64,401 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final user = state.user;
     final hasMultipleShops = state.shops.length > 1;
     final activeName = state.activeShop?.name ?? 'Not selected';
+
+    final body = SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_loadingPreferences) ...[
+              const LinearProgressIndicator(color: AppColors.primary),
+              const SizedBox(height: 12),
+            ],
+            ElevatedButton(
+              onPressed: _savingSettings ? null : _saveSettings,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'SAVE',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const _SectionLabel(text: 'ACCOUNT'),
+            const SizedBox(height: 8),
+            _SettingsCard(
+              children: [
+                if (user != null)
+                  _InfoRow(
+                    icon: Icons.person_outline,
+                    title:
+                        user.displayName.isEmpty
+                            ? user.email
+                            : user.displayName,
+                    subtitle: user.email,
+                  ),
+                if (user != null) const SizedBox(height: 12),
+                _InfoRow(
+                  icon: Icons.storefront_outlined,
+                  title: 'Active shop',
+                  subtitle: activeName,
+                  trailing:
+                      hasMultipleShops
+                          ? const Icon(
+                            Icons.chevron_right,
+                            color: Colors.white38,
+                          )
+                          : null,
+                  onTap:
+                      hasMultipleShops
+                          ? () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder:
+                                  (_) => const ShopSelectionScreen(
+                                    mode: ShopSelectionMode.standalone,
+                                  ),
+                            ),
+                          )
+                          : null,
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _signingOut ? null : _signOut,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFFF6B6B),
+                      side: const BorderSide(color: Color(0x55FF6B6B)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    icon:
+                        _signingOut
+                            ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                            : const Icon(Icons.logout),
+                    label: Text(_signingOut ? 'Signing out...' : 'Sign out'),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            if (widget.isAdmin) ...[
+              const _SectionLabel(text: 'ADMIN'),
+              const SizedBox(height: 8),
+              _SettingsCard(
+                children: [
+                  _InfoRow(
+                    icon: Icons.people_outline,
+                    title: 'User access',
+                    subtitle: 'Create, update, suspend, and remove staff.',
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: Colors.white38,
+                    ),
+                    onTap:
+                        () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const AdminUsersScreen(),
+                          ),
+                        ),
+                  ),
+                  const SizedBox(height: 12),
+                  _InfoRow(
+                    icon: Icons.library_books_outlined,
+                    title: 'Content management',
+                    subtitle:
+                        'Manage recipes, SOPs, categories, and publishing.',
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: Colors.white38,
+                    ),
+                    onTap:
+                        () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const ContentFormScreen(),
+                          ),
+                        ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            const _SectionLabel(text: 'THEME'),
+            const SizedBox(height: 8),
+            _SettingsCard(
+              children: [
+                const _FieldLabel(text: 'DISPLAY MODE'),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _PillBtn(
+                        label: 'Dark',
+                        isSelected: _isDark,
+                        onTap: () => setState(() => _isDark = true),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _PillBtn(
+                        label: 'Light',
+                        isSelected: !_isDark,
+                        onTap: () => setState(() => _isDark = false),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                const _FieldLabel(text: 'PRIMARY COLOR'),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _primaryHexController,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: AppColors.surfaceHigh,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                        ),
+                        onChanged:
+                            (value) => setState(() => _primaryHex = value),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: _parseColor(_primaryHex),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 8),
+                const _FieldLabel(text: 'QUICK SELECT'),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children:
+                      const [
+                        '#8B0000',
+                        '#C9A84C',
+                        '#E8A020',
+                        '#A8A8B0',
+                        '#22B55A',
+                        '#2278E8',
+                      ].map((hex) {
+                        return GestureDetector(
+                          onTap: () => _setPrimaryHex(hex),
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: _parseColor(hex),
+                              borderRadius: BorderRadius.circular(8),
+                              border:
+                                  _primaryHex == hex
+                                      ? Border.all(
+                                        color: Colors.white,
+                                        width: 2,
+                                      )
+                                      : null,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            const _SectionLabel(text: 'DISPLAY'),
+            const SizedBox(height: 8),
+            _SettingsCard(
+              children: [
+                const _FieldLabel(text: 'FONT SIZE'),
+                const SizedBox(height: 8),
+                Row(
+                  children:
+                      ['Small', 'Medium', 'Large'].map((size) {
+                        return Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: _PillBtn(
+                              label: size,
+                              isSelected: _fontSize == size,
+                              onTap: () => setState(() => _fontSize = size),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                ),
+
+                const SizedBox(height: 16),
+
+                const _FieldLabel(text: 'LANGUAGE'),
+                const SizedBox(height: 8),
+                Row(
+                  children:
+                      ['English', 'Myanmar'].map((lang) {
+                        return Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: _PillBtn(
+                              label: lang,
+                              isSelected: _language == lang,
+                              onTap: () => setState(() => _language = lang),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            const _SectionLabel(text: 'SECURITY'),
+            const SizedBox(height: 8),
+            _SettingsCard(
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'PIN Lock',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color:
+                            _pinEnabled
+                                ? const Color(0xFF22B55A)
+                                : Colors.white24,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        _pinEnabled ? 'ENABLED' : 'DISABLED',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _pinEnabled
+                      ? 'Required on app start'
+                      : 'App opens without PIN',
+                  style: const TextStyle(color: Colors.white38, fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _PillBtn(
+                        label: 'Enable',
+                        isSelected: _pinEnabled,
+                        activeColor: const Color(0xFF22B55A),
+                        onTap: () => setState(() => _pinEnabled = true),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _PillBtn(
+                        label: 'Disable',
+                        isSelected: !_pinEnabled,
+                        activeColor: Colors.red,
+                        onTap: _confirmDisablePin,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: _pinEnabled ? _showChangePinDialog : null,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor:
+                          _pinEnabled ? Colors.white : Colors.white24,
+                      side: BorderSide(
+                        color: _pinEnabled ? Colors.white38 : Colors.white12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text('Change PIN'),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            OutlinedButton(
+              onPressed: _savingSettings ? null : _resetDefaults,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white38,
+                side: const BorderSide(color: Colors.white12),
+                minimumSize: const Size.fromHeight(44),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Reset to Default'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (widget.embedded) {
+      return ColoredBox(color: AppColors.background, child: body);
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -54,330 +477,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 32),
-        children: [
-          const _SectionLabel(text: 'ACCOUNT'),
-          const SizedBox(height: 8),
-          _SettingsCard(
-            children: [
-              if (user != null)
-                _InfoRow(
-                  icon: Icons.person_outline,
-                  title:
-                      user.displayName.isEmpty ? user.email : user.displayName,
-                  subtitle: user.email,
-                ),
-              if (user != null) const SizedBox(height: 12),
-              _InfoRow(
-                icon: Icons.storefront_outlined,
-                title: 'Active shop',
-                subtitle: activeName,
-                trailing:
-                    hasMultipleShops
-                        ? const Icon(Icons.chevron_right, color: Colors.white38)
-                        : null,
-                onTap:
-                    hasMultipleShops
-                        ? () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder:
-                                (_) => const ShopSelectionScreen(
-                                  mode: ShopSelectionMode.standalone,
-                                ),
-                          ),
-                        )
-                        : null,
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed:
-                      () => context.read<StaffSessionController>().signOut(),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFFF6B6B),
-                    side: const BorderSide(color: Color(0x55FF6B6B)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  icon: const Icon(Icons.logout),
-                  label: const Text('Sign out'),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 16),
-
-          const _SectionLabel(text: 'THEME'),
-          const SizedBox(height: 8),
-          _SettingsCard(
-            children: [
-              const _FieldLabel(text: 'DISPLAY MODE'),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: _PillBtn(
-                      label: 'Dark',
-                      isSelected: _isDark,
-                      onTap: () => setState(() => _isDark = true),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _PillBtn(
-                      label: 'Light',
-                      isSelected: !_isDark,
-                      onTap: () => setState(() => _isDark = false),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 16),
-
-              const _FieldLabel(text: 'PRIMARY COLOR'),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _primaryHexController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: AppColors.surfaceHigh,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                      ),
-                      onChanged: (value) => setState(() => _primaryHex = value),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: _parseColor(_primaryHex),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 8),
-              const _FieldLabel(text: 'QUICK SELECT'),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children:
-                    const [
-                      '#8B0000',
-                      '#C9A84C',
-                      '#E8A020',
-                      '#A8A8B0',
-                      '#22B55A',
-                      '#2278E8',
-                    ].map((hex) {
-                      return GestureDetector(
-                        onTap: () => _setPrimaryHex(hex),
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: _parseColor(hex),
-                            borderRadius: BorderRadius.circular(8),
-                            border:
-                                _primaryHex == hex
-                                    ? Border.all(color: Colors.white, width: 2)
-                                    : null,
-                          ),
-                        ),
-                      );
-                    }).toList(),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 16),
-
-          const _SectionLabel(text: 'DISPLAY'),
-          const SizedBox(height: 8),
-          _SettingsCard(
-            children: [
-              const _FieldLabel(text: 'FONT SIZE'),
-              const SizedBox(height: 8),
-              Row(
-                children:
-                    ['Small', 'Medium', 'Large'].map((size) {
-                      return Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: _PillBtn(
-                            label: size,
-                            isSelected: _fontSize == size,
-                            onTap: () => setState(() => _fontSize = size),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-              ),
-
-              const SizedBox(height: 16),
-
-              const _FieldLabel(text: 'LANGUAGE'),
-              const SizedBox(height: 8),
-              Row(
-                children:
-                    ['English', 'Myanmar'].map((lang) {
-                      return Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: _PillBtn(
-                            label: lang,
-                            isSelected: _language == lang,
-                            onTap: () => setState(() => _language = lang),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 16),
-
-          const _SectionLabel(text: 'SECURITY'),
-          const SizedBox(height: 8),
-          _SettingsCard(
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'PIN Lock',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color:
-                          _pinEnabled
-                              ? const Color(0xFF22B55A)
-                              : Colors.white24,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      _pinEnabled ? 'ENABLED' : 'DISABLED',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _pinEnabled ? 'Required on app start' : 'App opens without PIN',
-                style: const TextStyle(color: Colors.white38, fontSize: 12),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _PillBtn(
-                      label: 'Enable',
-                      isSelected: _pinEnabled,
-                      activeColor: const Color(0xFF22B55A),
-                      onTap: () => setState(() => _pinEnabled = true),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _PillBtn(
-                      label: 'Disable',
-                      isSelected: !_pinEnabled,
-                      activeColor: Colors.red,
-                      onTap: _confirmDisablePin,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: _pinEnabled ? _showChangePinDialog : null,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor:
-                        _pinEnabled ? Colors.white : Colors.white24,
-                    side: BorderSide(
-                      color: _pinEnabled ? Colors.white38 : Colors.white12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: const Text('Change PIN'),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 24),
-
-          ElevatedButton(
-            onPressed: _saveSettings,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              minimumSize: const Size.fromHeight(52),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: const Text(
-              'SAVE AND APPLY',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          OutlinedButton(
-            onPressed: _resetDefaults,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white38,
-              side: const BorderSide(color: Colors.white12),
-              minimumSize: const Size.fromHeight(44),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: const Text('Reset to Default'),
-          ),
-        ],
-      ),
+      body: body,
     );
   }
 
@@ -389,29 +489,88 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _primaryHex = hex);
   }
 
-  void _saveSettings() {
-    showDialog<void>(
-      context: context,
-      builder:
-          (ctx) => AlertDialog(
-            backgroundColor: AppColors.surface,
-            title: const Text('Saved', style: TextStyle(color: Colors.white)),
-            content: const Text(
-              'Settings saved! Restart app to apply fully.',
-              style: TextStyle(color: Colors.white70),
-            ),
-            actions: [
-              ElevatedButton(
-                onPressed: () => Navigator.pop(ctx),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
+  Future<void> _loadPreferences(String userId) async {
+    setState(() => _loadingPreferences = true);
+    final preferences = await context
+        .read<UserPreferencesController>()
+        .loadForUser(userId, force: true);
+    if (!mounted || _loadedUserId != userId) return;
+    _applyPreferences(preferences);
+  }
+
+  void _applyPreferences(UserPreferences preferences) {
+    _primaryHexController.value = TextEditingValue(
+      text: preferences.primaryHex,
+      selection: TextSelection.collapsed(offset: preferences.primaryHex.length),
     );
+    setState(() {
+      _isDark = preferences.themeMode != 'light';
+      _primaryHex = preferences.primaryHex;
+      _fontSize = preferences.fontSize;
+      _language = preferences.language;
+      _pinEnabled = preferences.pinEnabled;
+      _loadingPreferences = false;
+    });
+  }
+
+  Future<void> _signOut() async {
+    setState(() => _signingOut = true);
+    try {
+      await context.read<StaffSessionController>().signOut();
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _signingOut = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not sign out. Please try again.')),
+      );
+    }
+  }
+
+  Future<void> _saveSettings() async {
+    final userId = _loadedUserId;
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sign in before saving settings.')),
+      );
+      return;
+    }
+
+    final preferencesController = context.read<UserPreferencesController>();
+    final pinStore = context.read<PinCredentialStore>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    setState(() => _savingSettings = true);
+    final preferences = UserPreferences(
+      themeMode: _isDark ? 'dark' : 'light',
+      primaryHex: _primaryHex,
+      fontSize: _fontSize,
+      language: _language,
+      pinEnabled: _pinEnabled,
+    );
+    try {
+      await preferencesController.saveForUser(userId, preferences);
+      if (_pinEnabled && !await pinStore.hasPin(userId)) {
+        await pinStore.setPin(userId, PinLockService.defaultPin);
+      }
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Settings saved.'),
+          backgroundColor: Color(0xFF22B55A),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not save settings.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _savingSettings = false);
+      }
+    }
   }
 
   void _resetDefaults() {
@@ -515,10 +674,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                     ElevatedButton(
-                      onPressed: () {
-                        if (newCtrl.text.length < 4) {
+                      onPressed: () async {
+                        final pinStore = context.read<PinCredentialStore>();
+                        final preferencesController =
+                            context.read<UserPreferencesController>();
+                        final navigator = Navigator.of(ctx);
+                        final messenger = ScaffoldMessenger.of(context);
+                        final userId = _loadedUserId;
+                        if (userId == null) {
                           setLocal(
-                            () => errorMsg = 'PIN must be at least 4 digits.',
+                            () => errorMsg = 'Sign in before changing PIN.',
+                          );
+                          return;
+                        }
+                        if (!_pinLockService.isValidPinShape(newCtrl.text)) {
+                          setLocal(
+                            () => errorMsg = 'PIN must be exactly 4 digits.',
                           );
                           return;
                         }
@@ -526,8 +697,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           setLocal(() => errorMsg = 'New PINs do not match.');
                           return;
                         }
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        final hasPin = await pinStore.hasPin(userId);
+                        if (hasPin &&
+                            !await pinStore.verifyPin(userId, curCtrl.text)) {
+                          setLocal(
+                            () => errorMsg = 'Current PIN is incorrect.',
+                          );
+                          return;
+                        }
+                        await pinStore.setPin(userId, newCtrl.text);
+                        final preferences = preferencesController.preferences
+                            .copyWith(pinEnabled: true);
+                        await preferencesController.saveForUser(
+                          userId,
+                          preferences,
+                        );
+                        if (!mounted) return;
+                        setState(() => _pinEnabled = true);
+                        navigator.pop();
+                        messenger.showSnackBar(
                           const SnackBar(
                             content: Text('PIN changed successfully!'),
                             backgroundColor: Color(0xFF22B55A),
@@ -739,8 +927,11 @@ class _PinField extends StatelessWidget {
           controller: controller,
           obscureText: true,
           keyboardType: TextInputType.number,
+          maxLength: 4,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
+            counterText: '',
             filled: true,
             fillColor: AppColors.surfaceHigh,
             border: OutlineInputBorder(

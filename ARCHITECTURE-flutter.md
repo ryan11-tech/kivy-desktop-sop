@@ -1,21 +1,21 @@
-# Tea Recipe & SOP App - Flutter + Firebase System Architecture
-
-# ZinmeAPP - Flutter + Firebase System Architecture
+# ZinmeAPP - Flutter + Zin Mae Backend API Architecture
 
 Companion to [PRD-flutter.md](./PRD-flutter.md).
 
-This architecture matches the revised Flutter direction:
+Current v1 implementation stack:
 
-- Firebase Auth email/password registration.
-- Admin-granted shop access by Gmail/email.
-- Per-user favorites.
-- Per-user local PIN unlock with default first-time PIN `2222`.
-- Draft/published content visibility.
-- Recipe and SOP content types.
-- Recipe and SOP content types, with flexible `recipeType` and `sopType`
-  metadata.
+- Flutter Material app.
+- Zin Mae backend API for auth, staff session refresh, shops, SOPs, and
+  recipes, and admin CRUD.
+- Dio with cookie persistence for backend API sessions.
+- Provider / ChangeNotifier for app state.
+- SharedPreferences for local user preferences and local favorites.
+- FlutterSecureStorage for per-user/device PIN verifiers.
 
 - No offline mode in v1.
+
+Firebase, Riverpod, and go_router notes in older documents are historical or
+future-only. Do not migrate to them in this pass.
 
 ---
 
@@ -25,33 +25,34 @@ This architecture matches the revised Flutter direction:
 flowchart LR
     subgraph Devices["Shop devices"]
         Staff["Staff app - Flutter"]
-        Admin["Admin app - same Flutter binary"]
     end
 
-    subgraph Firebase["Firebase project"]
-        Auth["Firebase Auth - email/password"]
-        FS["Cloud Firestore - users, shops, members, items"]
-        Storage["Firebase Storage - item images"]
-        Fns["Cloud Functions - access, claims, cleanup"]
-        Rules["Security Rules - Firestore and Storage"]
+    subgraph App["Flutter app"]
+        UI["Screens"]
+        State["Provider / ChangeNotifier controllers"]
+        Repo["Repositories"]
+        Dio["Dio API client + cookie store"]
     end
 
-    Staff --> Auth
-    Admin --> Auth
-    Staff --> FS
-    Admin --> FS
-    Admin --> Storage
-    Staff --> Storage
-    Admin --> Fns
-    Fns --> Auth
-    Fns --> FS
-    Fns --> Storage
-    Rules --- FS
-    Rules --- Storage
+    subgraph Backend["Zin Mae backend"]
+        Auth["Better Auth session endpoints"]
+        API["Staff, shop, recipe, and SOP APIs"]
+        DB["Backend database"]
+    end
+
+    Staff --> UI
+    UI --> State
+    State --> Repo
+    Repo --> Dio
+    Dio --> Auth
+    Dio --> API
+    API --> DB
 ```
 
-The same Flutter binary serves both roles. The signed-in user's Firebase Auth
-custom claims determine which data can be read and which writes are allowed.
+The Flutter app is staff-facing by default. Admin accounts can also manage
+staff access and basic recipe/SOP content through the same backend portal APIs.
+Server-side backend permissions determine which shops and content can be read or
+mutated.
 
 ---
 
@@ -60,21 +61,22 @@ custom claims determine which data can be read and which writes are allowed.
 ```mermaid
 flowchart TB
     UI["Screens and widgets"]
-    State["Riverpod providers / controllers"]
+    State["Provider / ChangeNotifier controllers"]
     Repo["Repositories"]
     Models["Typed models and serializers"]
-    SDK["Firebase Dart SDK"]
-    Backend["Firebase backend"]
+    API["Dio StaffApiClient"]
+    Backend["Zin Mae backend API"]
 
     UI --> State
     State --> Repo
     Repo --> Models
-    Repo --> SDK
-    SDK --> Backend
+    Repo --> API
+    API --> Backend
 ```
 
-Rule: screens never import Firebase SDK packages directly. They consume typed
-models and state from providers/controllers.
+Rule: screens never call Dio or backend APIs directly. They consume typed
+models and state from repositories/controllers, or use the shared
+`StaffApiClient` for admin portal operations.
 
 ```text
 lib/
@@ -101,7 +103,13 @@ lib/
 
 ---
 
-## 3. Registration and access flow
+## 3. Historical Firebase target, not current v1
+
+The remaining Firebase-oriented flow is retained as historical planning context
+only. Current implementation uses the Zin Mae backend API stack described
+above.
+
+### Registration and access flow
 
 ```mermaid
 sequenceDiagram

@@ -4,11 +4,11 @@ class AuthController {
   const AuthController();
 
   AuthGateState resolve({
-    required bool hasFirebaseSession,
+    required bool hasApiSession,
     required bool hasActiveAccess,
     required bool isLocallyUnlocked,
   }) {
-    if (!hasFirebaseSession) {
+    if (!hasApiSession) {
       return AuthGateState.signedOut;
     }
 

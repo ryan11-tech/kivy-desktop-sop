@@ -77,10 +77,6 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
               color: _isFavorite ? AppColors.favorite : Colors.white54,
             ),
           ),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.edit_outlined, color: Colors.white54),
-          ),
         ],
       ),
       body: ListView(
@@ -286,7 +282,7 @@ class _RecipeDetail extends StatelessWidget {
 
         // Parameters
         if (parameters.isNotEmpty) ...[
-          _SectionHeader(text: 'PARAMETERS'),
+          const _SectionHeader(text: 'PARAMETERS'),
           const SizedBox(height: 8),
           _ParameterTable(
             parameters: parameters.map((p) => p.scaledBy(servings)).toList(),
@@ -302,7 +298,7 @@ class _RecipeDetail extends StatelessWidget {
 
         // Steps
         if (steps.isNotEmpty) ...[
-          _SectionHeader(text: 'STEPS'),
+          const _SectionHeader(text: 'STEPS'),
           const SizedBox(height: 8),
           _StepsList(steps: steps),
         ],
@@ -398,13 +394,13 @@ class _SopDetail extends StatelessWidget {
           const SizedBox(height: 16),
         ],
         if (item.sop.parameters.isNotEmpty) ...[
-          _SectionHeader(text: 'PARAMETERS'),
+          const _SectionHeader(text: 'PARAMETERS'),
           const SizedBox(height: 8),
           _ParameterTable(parameters: item.sop.parameters),
           const SizedBox(height: 20),
         ],
         if (item.sop.steps.isNotEmpty) ...[
-          _SectionHeader(text: 'STEPS'),
+          const _SectionHeader(text: 'STEPS'),
           const SizedBox(height: 8),
           _StepsList(steps: item.sop.steps),
         ],

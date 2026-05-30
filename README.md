@@ -26,10 +26,15 @@ under `legacy/kivy_desktop_sop/` for reference only.
 
 - Flutter 3.41.6 / Dart 3.11.4 target.
 - Android and iOS project shells are generated.
-- The app has a small mocked catalog UI for recipes, SOPs, favorites, admin
-  controls, recipe variants, and serving scaling.
-- Firebase is not wired yet. Repository interfaces and model seams are already
-  in place for that work.
+- Staff authentication uses the Zin Mae backend API with persisted Better Auth
+  cookies.
+- Staff can load assigned shops, choose an active shop, browse published SOPs
+  and recipes from the backend, refresh catalogs, use favorites, configure local
+  settings, and unlock with a per-user device PIN.
+- Admin users can manage staff access and basic recipe/SOP content through the
+  backend portal APIs.
+- Bundled mock SOP/recipe data is only a development fallback when explicitly
+  enabled with `--dart-define`.
 
 ## Run
 
@@ -63,13 +68,18 @@ lib/
   theme/
   core/
     auth/
+    api/
     firestore/
     models/
+    recipes/
+    sops/
+    staff/
     search/
   features/
   widgets/
 ```
 
-Screens and widgets must not import Firebase SDK packages directly. Put
-Firebase access behind repositories, put app state in controllers/providers, and
-keep model serialization and validation in `core/models`.
+Screens and widgets must not create HTTP clients directly. Keep backend access
+behind repositories or `StaffApiClient`, keep app state in
+controllers/providers, and keep model serialization and validation in
+`core/models`.

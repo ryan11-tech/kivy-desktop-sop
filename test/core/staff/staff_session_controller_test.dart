@@ -75,7 +75,7 @@ void main() {
     });
 
     test(
-      'offline with cached user + shops + active id -> ready offline',
+      'offline with cached user + shops + active id -> offlineBlocked',
       () async {
         when(() => connectivity.isOnline()).thenAnswer((_) async => false);
         when(() => store.readUser()).thenAnswer((_) async => _user());
@@ -86,8 +86,8 @@ void main() {
 
         await controller.bootstrap();
 
-        expect(controller.state.status, StaffSessionStatus.ready);
-        expect(controller.state.activeShop?.id, 's2');
+        expect(controller.state.status, StaffSessionStatus.offlineBlocked);
+        expect(controller.state.activeShop, isNull);
         expect(controller.state.offline, isTrue);
       },
     );
@@ -180,6 +180,19 @@ void main() {
         expect(controller.state.status, StaffSessionStatus.needsShopSelection);
       },
     );
+  });
+
+  group('refreshSession', () {
+    test('checks the server again and advances to ready', () async {
+      when(() => connectivity.isOnline()).thenAnswer((_) async => true);
+      when(() => api.me()).thenAnswer((_) async => _user());
+      when(() => api.myShops()).thenAnswer((_) async => [_shop('only')]);
+
+      await controller.refreshSession();
+
+      expect(controller.state.status, StaffSessionStatus.ready);
+      expect(controller.state.activeShop?.id, 'only');
+    });
   });
 
   group('login', () {

@@ -134,7 +134,7 @@ class _OfflineScreen extends StatelessWidget {
               FilledButton(
                 onPressed:
                     () =>
-                        context.read<StaffSessionController>().retryBootstrap(),
+                        context.read<StaffSessionController>().refreshSession(),
                 child: const Text('Retry'),
               ),
             ],

@@ -37,6 +37,9 @@ class _CategoryScreenState extends State<CategoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final unitLabel =
+        widget.items.any((item) => item.isSop) ? 'SOPs' : 'recipes';
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -57,31 +60,11 @@ class _CategoryScreenState extends State<CategoryScreen> {
               ),
             ),
             Text(
-              '${widget.items.length} recipes',
+              '${widget.items.length} $unitLabel',
               style: const TextStyle(color: Colors.white38, fontSize: 11),
             ),
           ],
         ),
-        actions: [
-          if (widget.member.isAdmin)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: TextButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.add, color: Colors.white, size: 16),
-                label: const Text(
-                  'Add',
-                  style: TextStyle(color: Colors.white, fontSize: 12),
-                ),
-                style: TextButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-              ),
-            ),
-        ],
       ),
       body:
           widget.items.isEmpty
@@ -107,8 +90,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
                       });
                       widget.onToggleFavorite(itemId, isFav);
                     },
-                    onEdit: widget.member.isAdmin ? () {} : null,
-                    onDelete: widget.member.isAdmin ? () {} : null,
                   );
                 },
               ),
@@ -116,13 +97,13 @@ class _CategoryScreenState extends State<CategoryScreen> {
   }
 
   Widget _buildEmpty() {
-    return Center(
+    return const Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.coffee_outlined, size: 48, color: Colors.white24),
-          const SizedBox(height: 12),
-          const Text(
+          Icon(Icons.coffee_outlined, size: 48, color: Colors.white24),
+          SizedBox(height: 12),
+          Text(
             'No recipes yet',
             style: TextStyle(
               color: Colors.white,
@@ -130,9 +111,9 @@ class _CategoryScreenState extends State<CategoryScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 8),
-          const Text(
-            "Tap '+ Add' to add a new recipe.",
+          SizedBox(height: 8),
+          Text(
+            'No content is assigned to this category yet.',
             style: TextStyle(color: Colors.white38, fontSize: 13),
           ),
         ],
@@ -150,8 +131,6 @@ class _RecipeCard extends StatelessWidget {
     required this.isFavorite,
     required this.member,
     required this.onToggleFavorite,
-    this.onEdit,
-    this.onDelete,
   });
 
   final ContentItem item;
@@ -159,8 +138,6 @@ class _RecipeCard extends StatelessWidget {
   final bool isFavorite;
   final Member member;
   final void Function(String, bool) onToggleFavorite;
-  final VoidCallback? onEdit;
-  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -241,62 +218,9 @@ class _RecipeCard extends StatelessWidget {
                 ),
               ),
 
-            // Admin actions
-            if (member.isAdmin) ...[
-              const Divider(height: 1, color: AppColors.surfaceHigh),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    _ActionBtn(
-                      icon: Icons.edit_outlined,
-                      color: AppColors.primary,
-                      onTap: onEdit ?? () {},
-                    ),
-                    const SizedBox(width: 8),
-                    _ActionBtn(
-                      icon: Icons.delete_outline,
-                      color: Colors.red,
-                      onTap: onDelete ?? () {},
-                    ),
-                  ],
-                ),
-              ),
-            ] else
-              const SizedBox(height: 6),
+            const SizedBox(height: 6),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ── Action Button ─────────────────────────────────────────────────────────────
-
-class _ActionBtn extends StatelessWidget {
-  const _ActionBtn({
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: AppColors.surfaceHigh,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(icon, color: color, size: 16),
       ),
     );
   }
