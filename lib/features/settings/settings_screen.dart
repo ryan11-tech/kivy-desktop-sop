@@ -72,7 +72,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (_loadingPreferences) ...[
-              const LinearProgressIndicator(color: AppColors.primary),
+              LinearProgressIndicator(color: AppColors.primary),
               const SizedBox(height: 12),
             ],
             ElevatedButton(
@@ -840,7 +840,7 @@ class _SectionLabel extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 2),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           color: AppColors.primary,
           fontSize: 11,
           fontWeight: FontWeight.bold,

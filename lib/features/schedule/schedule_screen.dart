@@ -254,7 +254,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         // Day full name
         Text(
           _dayFull[_activeDay] ?? _activeDay,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.primary,
             fontSize: 16,
             fontWeight: FontWeight.bold,
@@ -1266,7 +1266,7 @@ class _TaskCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: const Border(
+        border: Border(
           top: BorderSide(color: AppColors.primary, width: 3),
         ),
       ),
@@ -1288,7 +1288,7 @@ class _TaskCard extends StatelessWidget {
                 ),
                 Text(
                   task.days.isEmpty ? 'Every day' : task.days.join('  '),
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.primary,
                     fontSize: 11,
                   ),
@@ -1653,7 +1653,7 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         color: AppColors.primary,
         fontSize: 11,
         fontWeight: FontWeight.bold,

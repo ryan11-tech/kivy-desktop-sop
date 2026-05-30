@@ -173,7 +173,7 @@ class _ServingStepper extends StatelessWidget {
           const SizedBox(width: 12),
           Text(
             'x$servings',
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.primary,
               fontSize: 22,
               fontWeight: FontWeight.bold,
@@ -384,7 +384,7 @@ class _SopDetail extends StatelessWidget {
             ),
             child: Text(
               item.sop.sopType.toUpperCase(),
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.primary,
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
@@ -420,7 +420,7 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         color: AppColors.primary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
@@ -435,7 +435,7 @@ class _SectionHeader extends StatelessWidget {
 class _ParameterTable extends StatelessWidget {
   const _ParameterTable({
     required this.parameters,
-    this.accent = AppColors.primary,
+    this.accent = AppColors.primaryDefault,
   });
 
   final List<Parameter> parameters;
