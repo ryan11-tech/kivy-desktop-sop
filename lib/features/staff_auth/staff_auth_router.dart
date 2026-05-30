@@ -7,7 +7,6 @@ import '../../theme/app_colors.dart';
 import 'shop_selection_screen.dart';
 import 'staff_change_password_screen.dart';
 import 'staff_login_screen.dart';
-import 'staff_otp_screen.dart';
 
 /// Maps [StaffSessionStatus] to a screen.
 ///
@@ -29,8 +28,6 @@ class StaffAuthRouter extends StatelessWidget {
         return const StaffLoginScreen();
       case StaffSessionStatus.needsPasswordChange:
         return const StaffChangePasswordScreen();
-      case StaffSessionStatus.needsOtp:
-        return const StaffOtpScreen();
       case StaffSessionStatus.needsShopSelection:
         return const ShopSelectionScreen();
       case StaffSessionStatus.blockedNoShops:

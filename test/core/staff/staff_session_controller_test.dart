@@ -16,13 +16,12 @@ class _MockStore extends Mock implements SecureSessionStore {}
 
 class _MockConnectivity extends Mock implements ConnectivityProbe {}
 
-StaffUser _user({bool requiresPassword = false, bool requiresOtp = false}) {
+StaffUser _user({bool requiresPassword = false}) {
   return StaffUser(
     id: 'u1',
     email: 'a@b.c',
     displayName: 'A',
     requiresPasswordChange: requiresPassword,
-    requiresOtp: requiresOtp,
   );
 }
 
@@ -114,15 +113,6 @@ void main() {
       expect(controller.state.status, StaffSessionStatus.needsPasswordChange);
     });
 
-    test('online + requiresOtp -> needsOtp', () async {
-      when(() => connectivity.isOnline()).thenAnswer((_) async => true);
-      when(() => api.me()).thenAnswer((_) async => _user(requiresOtp: true));
-
-      await controller.bootstrap();
-
-      expect(controller.state.status, StaffSessionStatus.needsOtp);
-    });
-
     test('online + no shops -> blockedNoShops', () async {
       when(() => connectivity.isOnline()).thenAnswer((_) async => true);
       when(() => api.me()).thenAnswer((_) async => _user());
@@ -206,19 +196,6 @@ void main() {
       await controller.login(email: 'a@b.c', password: 'x');
 
       expect(controller.state.status, StaffSessionStatus.needsPasswordChange);
-    });
-
-    test('login + requiresOtp -> needsOtp', () async {
-      when(
-        () => api.login(
-          email: any(named: 'email'),
-          password: any(named: 'password'),
-        ),
-      ).thenAnswer((_) async => LoginResult(user: _user(requiresOtp: true)));
-
-      await controller.login(email: 'a@b.c', password: 'x');
-
-      expect(controller.state.status, StaffSessionStatus.needsOtp);
     });
 
     test('login success + single shop -> ready', () async {

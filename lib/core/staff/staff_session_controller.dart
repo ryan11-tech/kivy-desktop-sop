@@ -95,16 +95,6 @@ class StaffSessionController extends ChangeNotifier {
       );
       return;
     }
-    if (result.user.requiresOtp) {
-      _emit(
-        _state.copyWith(
-          status: StaffSessionStatus.needsOtp,
-          user: result.user,
-          clearError: true,
-        ),
-      );
-      return;
-    }
     await _loadShopsAndAdvance(result.user);
   }
 
@@ -116,11 +106,6 @@ class StaffSessionController extends ChangeNotifier {
       currentPassword: currentPassword,
       newPassword: newPassword,
     );
-    await _refreshFromServer();
-  }
-
-  Future<void> submitOtp({required String code}) async {
-    await _api.verifyEmailOtp(code: code);
     await _refreshFromServer();
   }
 
@@ -152,17 +137,6 @@ class StaffSessionController extends ChangeNotifier {
         _emit(
           _state.copyWith(
             status: StaffSessionStatus.needsPasswordChange,
-            user: user,
-            offline: false,
-            clearError: true,
-          ),
-        );
-        return;
-      }
-      if (user.requiresOtp) {
-        _emit(
-          _state.copyWith(
-            status: StaffSessionStatus.needsOtp,
             user: user,
             offline: false,
             clearError: true,

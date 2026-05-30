@@ -84,15 +84,6 @@ class StaffApiClient {
     );
   }
 
-  Future<void> verifyEmailOtp({required String code}) async {
-    await _send(
-      () => _dio.post<Map<String, Object?>>(
-        '/staff/verify-email-otp',
-        data: <String, Object?>{'code': code},
-      ),
-    );
-  }
-
   Future<StaffUser> me() async {
     final res = await _send(() => _dio.get<Map<String, Object?>>('/staff/me'));
     final data = res.data ?? const <String, Object?>{};
@@ -122,6 +113,22 @@ class StaffApiClient {
     );
     final data = res.data ?? const <String, Object?>{};
     final list = (data['sops'] as List<Object?>?) ?? const <Object?>[];
+    return list
+        .whereType<Map<String, Object?>>()
+        .map((json) => ContentItem.fromJson(json['id'] as String? ?? '', json))
+        .toList(growable: false);
+  }
+
+  /// Lists published recipes assigned to [shopId], shaped as [ContentItem]s.
+  ///
+  /// Same envelope as [listShopSops]: each item carries its stable `publicId`
+  /// under the `id` key, which becomes [ContentItem.id].
+  Future<List<ContentItem>> listShopRecipes(String shopId) async {
+    final res = await _send(
+      () => _dio.get<Map<String, Object?>>('/staff/shops/$shopId/recipes'),
+    );
+    final data = res.data ?? const <String, Object?>{};
+    final list = (data['recipes'] as List<Object?>?) ?? const <Object?>[];
     return list
         .whereType<Map<String, Object?>>()
         .map((json) => ContentItem.fromJson(json['id'] as String? ?? '', json))

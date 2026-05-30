@@ -5,7 +5,6 @@ class StaffUser {
     required this.email,
     required this.displayName,
     required this.requiresPasswordChange,
-    required this.requiresOtp,
   });
 
   factory StaffUser.fromJson(Map<String, Object?> json) {
@@ -15,7 +14,6 @@ class StaffUser {
       displayName:
           json['displayName'] as String? ?? json['name'] as String? ?? '',
       requiresPasswordChange: json['requiresPasswordChange'] as bool? ?? false,
-      requiresOtp: json['requiresOtp'] as bool? ?? false,
     );
   }
 
@@ -23,16 +21,14 @@ class StaffUser {
   final String email;
   final String displayName;
   final bool requiresPasswordChange;
-  final bool requiresOtp;
 
-  StaffUser copyWith({bool? requiresPasswordChange, bool? requiresOtp}) {
+  StaffUser copyWith({bool? requiresPasswordChange}) {
     return StaffUser(
       id: id,
       email: email,
       displayName: displayName,
       requiresPasswordChange:
           requiresPasswordChange ?? this.requiresPasswordChange,
-      requiresOtp: requiresOtp ?? this.requiresOtp,
     );
   }
 
@@ -42,7 +38,6 @@ class StaffUser {
       'email': email,
       'displayName': displayName,
       'requiresPasswordChange': requiresPasswordChange,
-      'requiresOtp': requiresOtp,
     };
   }
 }

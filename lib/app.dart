@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'core/recipes/recipe_repository.dart';
 import 'core/sops/sop_repository.dart';
 import 'core/staff/staff_session_controller.dart';
 import 'features/home/home_screen.dart';
@@ -13,10 +14,12 @@ class ZinmeApp extends StatelessWidget {
     super.key,
     required this.sessionController,
     required this.sopRepository,
+    required this.recipeRepository,
   });
 
   final StaffSessionController sessionController;
   final SopRepository sopRepository;
+  final RecipeRepository recipeRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -26,6 +29,7 @@ class ZinmeApp extends StatelessWidget {
           value: sessionController,
         ),
         Provider<SopRepository>.value(value: sopRepository),
+        Provider<RecipeRepository>.value(value: recipeRepository),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,

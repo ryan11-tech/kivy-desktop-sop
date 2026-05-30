@@ -5,6 +5,8 @@ import '../../core/firestore/favorites_repository.dart';
 import '../../core/models/category.dart';
 import '../../core/models/content_item.dart';
 import '../../core/models/member.dart';
+import '../../core/recipes/recipe_catalog_controller.dart';
+import '../../core/recipes/recipe_repository.dart';
 import '../../core/search/content_search.dart';
 import '../../core/sops/sop_catalog_controller.dart';
 import '../../core/sops/sop_category_mapper.dart';
@@ -17,10 +19,15 @@ import '../item_detail/item_detail_screen.dart';
 import '../schedule/schedule_screen.dart';
 import '../settings/settings_screen.dart';
 
+/// Which content kind the home body is showing.
+enum HomeSegment { sop, recipe }
+
 class HomeScreen extends StatefulWidget {
   HomeScreen({
     FavoritesRepository? favoritesRepository,
-    this.member = DemoAccounts.admin,
+    // Staff app is read-only — content editing lives in the portal. Default to
+    // a staff identity so admin-only affordances (FAB, edit/delete) stay hidden.
+    this.member = DemoAccounts.staff,
     super.key,
   }) : favoritesRepository =
            favoritesRepository ?? InMemoryFavoritesRepository();
@@ -35,9 +42,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   SopCatalogController? _catalog;
+  RecipeCatalogController? _recipeCatalog;
   StaffSessionController? _session;
   Set<String> _favoriteIds = {};
   int _navIndex = 0;
+  HomeSegment _segment = HomeSegment.sop;
   bool _showSearch = false;
   bool _favoritesRequested = false;
 
@@ -46,6 +55,8 @@ class _HomeScreenState extends State<HomeScreen> {
     super.didChangeDependencies();
 
     _catalog ??= SopCatalogController(context.read<SopRepository>())
+      ..addListener(_onCatalogChanged);
+    _recipeCatalog ??= RecipeCatalogController(context.read<RecipeRepository>())
       ..addListener(_onCatalogChanged);
 
     final session = context.read<StaffSessionController>();
@@ -77,7 +88,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void _syncShop() {
     // loadForShop dedups by shop id, so calling it on every session change is
     // safe and only reloads when the active shop actually changes.
-    _catalog?.loadForShop(_session?.state.activeShop);
+    final shop = _session?.state.activeShop;
+    _catalog?.loadForShop(shop);
+    _recipeCatalog?.loadForShop(shop);
   }
 
   @override
@@ -85,22 +98,29 @@ class _HomeScreenState extends State<HomeScreen> {
     _session?.removeListener(_onSessionChanged);
     _catalog?.removeListener(_onCatalogChanged);
     _catalog?.dispose();
+    _recipeCatalog?.removeListener(_onCatalogChanged);
+    _recipeCatalog?.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final catalog = _catalog;
+    final ready = _catalog != null && _recipeCatalog != null;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: _buildAppBar(),
       body:
-          catalog == null
+          !ready
               ? const Center(
                 child: CircularProgressIndicator(color: AppColors.primary),
               )
-              : _buildBody(catalog),
+              : Column(
+                children: [
+                  _buildSegmentBar(),
+                  Expanded(child: _buildBody()),
+                ],
+              ),
       bottomNavigationBar: _buildBottomNav(),
       floatingActionButton:
           widget.member.isAdmin && _navIndex == 0
@@ -129,7 +149,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 autofocus: true,
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
-                  hintText: 'Search SOPs...',
+                  hintText: 'Search...',
                   hintStyle: TextStyle(color: Colors.white54),
                   border: InputBorder.none,
                 ),
@@ -147,7 +167,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   Text(
-                    _navIndex == 1 ? 'Favorites' : 'Food & Beverage SOP',
+                    _navIndex == 1
+                        ? 'Favorites'
+                        : (_segment == HomeSegment.sop
+                            ? 'Food & Beverage SOP'
+                            : 'Recipes'),
                     style: const TextStyle(color: Colors.white54, fontSize: 11),
                   ),
                 ],
@@ -187,38 +211,70 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildBody(SopCatalogController catalog) {
-    switch (catalog.status) {
+  Widget _buildSegmentBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+      child: SegmentedButton<HomeSegment>(
+        segments: const [
+          ButtonSegment(
+            value: HomeSegment.sop,
+            label: Text('SOPs'),
+            icon: Icon(Icons.assignment_outlined),
+          ),
+          ButtonSegment(
+            value: HomeSegment.recipe,
+            label: Text('Recipes'),
+            icon: Icon(Icons.local_cafe),
+          ),
+        ],
+        selected: {_segment},
+        onSelectionChanged: (selection) {
+          setState(() => _segment = selection.first);
+        },
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    final isSop = _segment == HomeSegment.sop;
+    final status = isSop ? _catalog!.status : _recipeCatalog!.status;
+    final groups = isSop ? _catalog!.groups : _recipeCatalog!.groups;
+    final errorMessage =
+        isSop ? _catalog!.errorMessage : _recipeCatalog!.errorMessage;
+    final onRetry = isSop ? _catalog!.retry : _recipeCatalog!.retry;
+    final noun = isSop ? 'SOPs' : 'recipes';
+
+    switch (status) {
       case SopCatalogStatus.loading:
         return const Center(
           child: CircularProgressIndicator(color: AppColors.primary),
         );
       case SopCatalogStatus.noShopSelected:
-        return const _MessageView(
+        return _MessageView(
           icon: Icons.store_mall_directory_outlined,
           title: 'No shop selected',
-          message: 'Select a shop to view its SOPs.',
+          message: 'Select a shop to view its $noun.',
         );
       case SopCatalogStatus.permissionDenied:
         return _MessageView(
           icon: Icons.lock_outline,
           title: 'No access',
           message:
-              catalog.errorMessage ??
-              'You do not have permission to view SOPs for this shop.',
+              errorMessage ??
+              'You do not have permission to view $noun for this shop.',
         );
       case SopCatalogStatus.error:
         return _MessageView(
           icon: Icons.error_outline,
-          title: 'Could not load SOPs',
-          message: catalog.errorMessage ?? 'Something went wrong.',
-          onRetry: catalog.retry,
+          title: 'Could not load $noun',
+          message: errorMessage ?? 'Something went wrong.',
+          onRetry: onRetry,
         );
       case SopCatalogStatus.empty:
-        return const _MessageView(
+        return _MessageView(
           icon: Icons.inbox_outlined,
-          title: 'No SOPs yet',
-          message: 'No published SOPs are assigned to this shop.',
+          title: 'No $noun yet',
+          message: 'No published $noun are assigned to this shop.',
         );
       case SopCatalogStatus.loaded:
         break;
@@ -227,14 +283,14 @@ class _HomeScreenState extends State<HomeScreen> {
     final query = _searchController.text.toLowerCase().trim();
 
     if (_navIndex == 1) {
-      return _buildFavoritesView(catalog.groups);
+      return _buildFavoritesView(groups);
     }
 
     if (query.isNotEmpty) {
-      return _buildSearchResults(catalog.groups, query);
+      return _buildSearchResults(groups, query);
     }
 
-    return _buildGroupList(catalog.groups);
+    return _buildGroupList(groups);
   }
 
   Widget _buildGroupList(List<SopGroup> groups) {
@@ -248,6 +304,7 @@ class _HomeScreenState extends State<HomeScreen> {
         return _CategoryCard(
           category: category,
           items: group.items,
+          unitLabel: _segment == HomeSegment.sop ? 'SOPs' : 'recipes',
           favoriteIds: _favoriteIds,
           member: widget.member,
           onToggleFavorite: _toggleFavorite,
@@ -505,6 +562,7 @@ class _CategoryCard extends StatelessWidget {
   const _CategoryCard({
     required this.category,
     required this.items,
+    required this.unitLabel,
     required this.favoriteIds,
     required this.member,
     required this.onToggleFavorite,
@@ -515,6 +573,7 @@ class _CategoryCard extends StatelessWidget {
 
   final Category category;
   final List<ContentItem> items;
+  final String unitLabel;
   final Set<String> favoriteIds;
   final Member member;
   final void Function(String, bool) onToggleFavorite;
@@ -575,7 +634,7 @@ class _CategoryCard extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          '${items.length} SOPs',
+                          '${items.length} $unitLabel',
                           style: const TextStyle(
                             color: Colors.white38,
                             fontSize: 11,
@@ -620,7 +679,7 @@ class _CategoryCard extends StatelessWidget {
             TextButton(
               onPressed: onOpenCategory,
               child: Text(
-                'View all ${items.length} SOPs  >',
+                'View all ${items.length} $unitLabel  >',
                 style: const TextStyle(
                   color: AppColors.primary,
                   fontSize: 12,

@@ -14,9 +14,6 @@ enum StaffSessionStatus {
   /// Backend flagged the staff user must rotate their temporary password.
   needsPasswordChange,
 
-  /// Backend requires email OTP verification before the session is usable.
-  needsOtp,
-
   /// Staff has more than one shop and no valid persisted active id.
   needsShopSelection,
 
@@ -26,7 +23,7 @@ enum StaffSessionStatus {
   /// Offline at bootstrap with no cached session.
   offlineBlocked,
 
-  /// Authenticated, password OK, OTP OK, active shop resolved.
+  /// Authenticated, password OK, active shop resolved.
   ready,
 }
 

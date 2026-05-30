@@ -10,7 +10,6 @@ void main() {
         email: 'a@b.c',
         displayName: 'Alice',
         requiresPasswordChange: true,
-        requiresOtp: false,
       );
 
       final parsed = StaffUser.fromJson(user.toJson());
@@ -19,7 +18,6 @@ void main() {
       expect(parsed.email, user.email);
       expect(parsed.displayName, user.displayName);
       expect(parsed.requiresPasswordChange, isTrue);
-      expect(parsed.requiresOtp, isFalse);
     });
 
     test('falls back to name when displayName absent', () {
@@ -31,7 +29,6 @@ void main() {
 
       expect(parsed.displayName, 'Old Name');
       expect(parsed.requiresPasswordChange, isFalse);
-      expect(parsed.requiresOtp, isFalse);
     });
   });
 }

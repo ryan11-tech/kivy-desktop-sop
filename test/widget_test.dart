@@ -4,6 +4,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:zinme_app/app.dart';
 import 'package:zinme_app/core/api/staff_api_client.dart';
 import 'package:zinme_app/core/models/content_item.dart';
+import 'package:zinme_app/core/recipes/recipe_repository.dart';
 import 'package:zinme_app/core/sops/sop_repository.dart';
 import 'package:zinme_app/core/staff/connectivity_probe.dart';
 import 'package:zinme_app/core/staff/secure_session_store.dart';
@@ -23,6 +24,12 @@ class _FakeSopRepository implements SopRepository {
       const <ContentItem>[];
 }
 
+class _FakeRecipeRepository implements RecipeRepository {
+  @override
+  Future<List<ContentItem>> listShopRecipes(String shopId) async =>
+      const <ContentItem>[];
+}
+
 void main() {
   setUpAll(() {
     registerFallbackValue(
@@ -31,7 +38,6 @@ void main() {
         email: 'fallback@example.com',
         displayName: 'Fallback',
         requiresPasswordChange: false,
-        requiresOtp: false,
       ),
     );
     registerFallbackValue(const <Shop>[]);
@@ -55,7 +61,6 @@ void main() {
         email: 'a@b.c',
         displayName: 'A',
         requiresPasswordChange: false,
-        requiresOtp: false,
       ),
     );
     when(
@@ -72,6 +77,7 @@ void main() {
       ZinmeApp(
         sessionController: controller,
         sopRepository: _FakeSopRepository(),
+        recipeRepository: _FakeRecipeRepository(),
       ),
     );
     await controller.bootstrap();
