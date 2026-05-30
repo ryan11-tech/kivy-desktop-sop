@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'core/api/staff_api_client.dart';
+import 'core/attendance/attendance_repository.dart';
+import 'core/attendance/location_service.dart';
 import 'core/auth/pin_credential_store.dart';
 import 'core/auth/pin_lock_service.dart';
 import 'core/firestore/favorites_repository.dart';
@@ -26,9 +28,11 @@ class ZinmeApp extends StatelessWidget {
     required this.sessionController,
     required this.sopRepository,
     required this.recipeRepository,
+    required this.attendanceRepository,
     required this.favoritesRepository,
     required this.userPreferencesController,
     required this.pinCredentialStore,
+    this.locationProvider = const GeolocatorLocationProvider(),
     this.autoLockEnabled = true,
   });
 
@@ -36,6 +40,8 @@ class ZinmeApp extends StatelessWidget {
   final StaffSessionController sessionController;
   final SopRepository sopRepository;
   final RecipeRepository recipeRepository;
+  final AttendanceRepository attendanceRepository;
+  final LocationProvider locationProvider;
   final FavoritesRepository favoritesRepository;
   final UserPreferencesController userPreferencesController;
   final PinCredentialStore pinCredentialStore;
@@ -54,6 +60,8 @@ class ZinmeApp extends StatelessWidget {
         Provider<StaffApiClient>.value(value: apiClient),
         Provider<SopRepository>.value(value: sopRepository),
         Provider<RecipeRepository>.value(value: recipeRepository),
+        Provider<AttendanceRepository>.value(value: attendanceRepository),
+        Provider<LocationProvider>.value(value: locationProvider),
         Provider<FavoritesRepository>.value(value: favoritesRepository),
         ChangeNotifierProvider<UserPreferencesController>.value(
           value: userPreferencesController,

@@ -28,11 +28,18 @@ class ClientApiException extends ApiException {
     super.message, {
     required this.statusCode,
     this.code,
+    this.distanceMeters,
+    this.allowedRadiusMeters,
     super.cause,
   });
 
   final int statusCode;
   final String? code;
+
+  /// Populated for attendance location failures (e.g. `OUT_OF_RANGE`) so the UI
+  /// can tell the user how far away they are and the shop's allowed radius.
+  final int? distanceMeters;
+  final int? allowedRadiusMeters;
 }
 
 /// HTTP 5xx.
