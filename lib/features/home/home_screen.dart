@@ -118,7 +118,7 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: _buildAppBar(),
       body:
           !ready
-              ? const Center(
+              ? Center(
                 child: CircularProgressIndicator(color: AppColors.primary),
               )
               : _buildSelectedPage(),
@@ -310,7 +310,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     switch (status) {
       case SopCatalogStatus.loading:
-        return const Center(
+        return Center(
           child: CircularProgressIndicator(color: AppColors.primary),
         );
       case SopCatalogStatus.noShopSelected:
@@ -459,7 +459,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildBottomNav() {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.surface,
         border: Border(top: BorderSide(color: AppColors.primary, width: 1)),
       ),
@@ -709,7 +709,7 @@ class _CategoryCard extends StatelessWidget {
                       color: AppColors.background,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.chevron_right,
                       color: AppColors.primary,
                     ),
@@ -739,7 +739,7 @@ class _CategoryCard extends StatelessWidget {
               onPressed: onOpenCategory,
               child: Text(
                 'View all ${items.length} $unitLabel  >',
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.primary,
                   fontSize: 12,
                   fontWeight: FontWeight.bold,

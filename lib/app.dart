@@ -60,31 +60,37 @@ class ZinmeApp extends StatelessWidget {
         ),
         Provider<PinCredentialStore>.value(value: pinCredentialStore),
       ],
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'Kitchen Guide',
-        theme: AppTheme.dark(),
-        builder: (context, child) {
-          final content = PrivacyScreenGuard(
-            child: child ?? const SizedBox.shrink(),
-          );
-          // Apply the saved font-size preference app-wide (dialogs included).
-          return Consumer<UserPreferencesController>(
-            builder: (context, preferences, _) {
+      // Rebuild MaterialApp when preferences change so the saved primary color
+      // (and font scale) apply live, without restarting the app.
+      child: Consumer<UserPreferencesController>(
+        builder: (context, preferences, _) {
+          final primary = AppColors.fromHex(preferences.preferences.primaryHex);
+          // Recolor the app's AppColors.primary call sites to the saved choice.
+          // Idempotent per build; pending a full Theme/colorScheme migration.
+          AppColors.primary = primary;
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            title: 'Kitchen Guide',
+            theme: AppTheme.dark(primary: primary),
+            builder: (context, child) {
+              // Apply the saved font-size preference app-wide (dialogs included).
               return MediaQuery(
                 data: MediaQuery.of(context).copyWith(
                   textScaler: TextScaler.linear(
                     _fontScaleFor(preferences.preferences.fontSize),
                   ),
                 ),
-                child: content,
+                child: PrivacyScreenGuard(
+                  child: child ?? const SizedBox.shrink(),
+                ),
               );
             },
+            home: StaffAuthRouter(
+              readyBuilder:
+                  (context) => _AppGate(autoLockEnabled: autoLockEnabled),
+            ),
           );
         },
-        home: StaffAuthRouter(
-          readyBuilder: (context) => _AppGate(autoLockEnabled: autoLockEnabled),
-        ),
       ),
     );
   }
@@ -258,10 +264,12 @@ class _AppGateState extends State<_AppGate> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     if (_checkingPin) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: AppColors.background,
         body: Center(
-          child: CircularProgressIndicator(color: AppColors.primary),
+          child: CircularProgressIndicator(
+            color: Theme.of(context).colorScheme.primary,
+          ),
         ),
       );
     }

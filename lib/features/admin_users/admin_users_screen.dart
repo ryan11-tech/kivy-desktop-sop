@@ -119,8 +119,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             ),
             const SizedBox(height: 12),
             if (_loading)
-              const Padding(
-                padding: EdgeInsets.only(top: 80),
+              Padding(
+                padding: const EdgeInsets.only(top: 80),
                 child: Center(
                   child: CircularProgressIndicator(color: AppColors.primary),
                 ),
@@ -621,7 +621,7 @@ class _Chip extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: const TextStyle(color: AppColors.primary, fontSize: 10),
+        style: TextStyle(color: AppColors.primary, fontSize: 10),
       ),
     );
   }

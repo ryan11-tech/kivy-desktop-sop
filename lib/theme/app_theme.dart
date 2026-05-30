@@ -5,15 +5,15 @@ import 'app_colors.dart';
 class AppTheme {
   const AppTheme._();
 
-  static ThemeData dark() {
-    const colorScheme = ColorScheme.dark(
-      primary: AppColors.primary,
+  static ThemeData dark({Color primary = AppColors.primaryDefault}) {
+    final colorScheme = ColorScheme.dark(
+      primary: primary,
       secondary: AppColors.gold,
       surface: AppColors.surface,
-      error: Color(0xFFFF6B6B),
+      error: const Color(0xFFFF6B6B),
       onPrimary: Colors.white,
       onSecondary: Colors.black,
-      onSurface: Color(0xFFF4F4F4),
+      onSurface: const Color(0xFFF4F4F4),
     );
 
     return ThemeData(
@@ -38,7 +38,7 @@ class AppTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.surfaceHigh,
-        selectedColor: AppColors.primary,
+        selectedColor: primary,
         labelStyle: const TextStyle(color: Colors.white),
         secondaryLabelStyle: const TextStyle(color: Colors.white),
         side: BorderSide.none,

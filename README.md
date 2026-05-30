@@ -1,5 +1,8 @@
 # Tea SOP
 
+> **This repo is now the Flutter `ZinmeApp` staff app — see the [ZinmeAPP](#zinmeapp) section below.**
+> The Kivy content here is legacy reference; the live Kivy code lives under `legacy/kivy_desktop_sop/`.
+
 Kivy desktop app for tea / milk-tea Standard Operating Procedure cards. Phone-shape window, single-user kiosk style.
 
 ## Run

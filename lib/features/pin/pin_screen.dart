@@ -93,8 +93,8 @@ class _PinScreenState extends State<PinScreen> {
                       ),
                     ),
                     if (_submitting)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 36),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 36),
                         child: CircularProgressIndicator(
                           color: AppColors.primary,
                         ),
