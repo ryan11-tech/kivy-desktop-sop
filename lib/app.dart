@@ -13,6 +13,7 @@ import 'core/preferences/user_preferences_controller.dart';
 import 'core/recipes/recipe_repository.dart';
 import 'core/security/privacy_screen_guard.dart';
 import 'core/sops/sop_repository.dart';
+import 'core/staff/staff_profile_controller.dart';
 import 'core/staff/staff_session_controller.dart';
 import 'core/staff/staff_session_state.dart';
 import 'features/home/home_screen.dart';
@@ -58,6 +59,9 @@ class ZinmeApp extends StatelessWidget {
           value: sessionController,
         ),
         Provider<StaffApiClient>.value(value: apiClient),
+        ChangeNotifierProvider<StaffProfileController>(
+          create: (_) => StaffProfileController(apiClient: apiClient),
+        ),
         Provider<SopRepository>.value(value: sopRepository),
         Provider<RecipeRepository>.value(value: recipeRepository),
         Provider<AttendanceRepository>.value(value: attendanceRepository),

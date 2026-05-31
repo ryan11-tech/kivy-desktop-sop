@@ -11,6 +11,7 @@ import '../../theme/app_colors.dart';
 import '../admin_users/admin_users_screen.dart';
 import '../item_form/content_form_screen.dart';
 import '../staff_auth/shop_selection_screen.dart';
+import '../staff_profile/staff_profile_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
@@ -127,6 +128,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                           )
                           : null,
+                ),
+                const SizedBox(height: 12),
+                _InfoRow(
+                  icon: Icons.badge_outlined,
+                  title: 'View Profile',
+                  subtitle: 'See and edit your personal info.',
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: Colors.white38,
+                  ),
+                  onTap:
+                      () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const StaffProfileScreen(),
+                        ),
+                      ),
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
