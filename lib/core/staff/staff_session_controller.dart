@@ -102,6 +102,27 @@ class StaffSessionController extends ChangeNotifier {
     _emit(const StaffSessionState(status: StaffSessionStatus.needsLogin));
   }
 
+  /// Applies a saved profile edit to the current session user so the UI reflects
+  /// the new display name and personal fields immediately, without forcing the
+  /// auth router back through the splash/bootstrap flow.
+  Future<void> applyProfileUpdate({
+    required String displayName,
+    String? preferredName,
+    String? phone,
+    String? lineId,
+  }) async {
+    final current = _state.user;
+    if (current == null) return;
+    final updated = current.withProfile(
+      displayName: displayName,
+      preferredName: preferredName,
+      phone: phone,
+      lineId: lineId,
+    );
+    await _store.saveUser(updated);
+    _emit(_state.copyWith(user: updated));
+  }
+
   Future<void> retryBootstrap() async {
     _emit(const StaffSessionState.initializing());
     await bootstrap();

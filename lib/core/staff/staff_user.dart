@@ -7,6 +7,11 @@ class StaffUser {
     required this.requiresPasswordChange,
     this.accountRole = 'staff',
     this.staffProfileId = '',
+    this.staffCode = '',
+    this.status = '',
+    this.preferredName,
+    this.phone,
+    this.lineId,
   });
 
   factory StaffUser.fromJson(Map<String, Object?> json) {
@@ -18,6 +23,11 @@ class StaffUser {
       requiresPasswordChange: json['requiresPasswordChange'] as bool? ?? false,
       accountRole: json['accountRole'] as String? ?? 'staff',
       staffProfileId: json['staffProfileId'] as String? ?? '',
+      staffCode: json['staffCode'] as String? ?? '',
+      status: json['status'] as String? ?? '',
+      preferredName: json['preferredName'] as String?,
+      phone: json['phone'] as String?,
+      lineId: json['lineId'] as String?,
     );
   }
 
@@ -34,6 +44,11 @@ class StaffUser {
           staffProfile['accountRole'] as String? ??
           'staff',
       staffProfileId: staffProfile['id'] as String? ?? '',
+      staffCode: staffProfile['staffCode'] as String? ?? '',
+      status: staffProfile['status'] as String? ?? '',
+      preferredName: staffProfile['preferredName'] as String?,
+      phone: staffProfile['phone'] as String?,
+      lineId: staffProfile['lineId'] as String?,
     );
   }
 
@@ -43,6 +58,11 @@ class StaffUser {
   final bool requiresPasswordChange;
   final String accountRole;
   final String staffProfileId;
+  final String staffCode;
+  final String status;
+  final String? preferredName;
+  final String? phone;
+  final String? lineId;
 
   bool get isAdmin => accountRole == 'admin';
 
@@ -52,6 +72,11 @@ class StaffUser {
     bool? requiresPasswordChange,
     String? accountRole,
     String? staffProfileId,
+    String? staffCode,
+    String? status,
+    String? preferredName,
+    String? phone,
+    String? lineId,
   }) {
     return StaffUser(
       id: id,
@@ -61,6 +86,34 @@ class StaffUser {
           requiresPasswordChange ?? this.requiresPasswordChange,
       accountRole: accountRole ?? this.accountRole,
       staffProfileId: staffProfileId ?? this.staffProfileId,
+      staffCode: staffCode ?? this.staffCode,
+      status: status ?? this.status,
+      preferredName: preferredName ?? this.preferredName,
+      phone: phone ?? this.phone,
+      lineId: lineId ?? this.lineId,
+    );
+  }
+
+  /// Applies a saved profile edit, preserving identity and work fields while
+  /// allowing the editable personal fields to be set or cleared to null.
+  StaffUser withProfile({
+    required String displayName,
+    required String? preferredName,
+    required String? phone,
+    required String? lineId,
+  }) {
+    return StaffUser(
+      id: id,
+      email: email,
+      displayName: displayName,
+      requiresPasswordChange: requiresPasswordChange,
+      accountRole: accountRole,
+      staffProfileId: staffProfileId,
+      staffCode: staffCode,
+      status: status,
+      preferredName: preferredName,
+      phone: phone,
+      lineId: lineId,
     );
   }
 
@@ -72,6 +125,11 @@ class StaffUser {
       'requiresPasswordChange': requiresPasswordChange,
       'accountRole': accountRole,
       'staffProfileId': staffProfileId,
+      'staffCode': staffCode,
+      'status': status,
+      'preferredName': preferredName,
+      'phone': phone,
+      'lineId': lineId,
     };
   }
 }
