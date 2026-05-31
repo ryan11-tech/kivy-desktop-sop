@@ -6,6 +6,7 @@ import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import '../attendance/attendance_models.dart';
 import '../models/content_item.dart';
 import '../staff/shop.dart';
+import '../staff/staff_profile.dart';
 import '../staff/staff_user.dart';
 import 'admin_api_models.dart';
 import 'api_exceptions.dart';
@@ -109,6 +110,25 @@ class StaffApiClient {
         .whereType<Map<String, Object?>>()
         .map(Shop.fromJson)
         .toList(growable: false);
+  }
+
+  /// The signed-in staff member's self-service profile (`GET /staff/profile`).
+  Future<StaffProfile> getStaffProfile() async {
+    final res = await _send(
+      () => _dio.get<Map<String, Object?>>('/staff/profile'),
+    );
+    return StaffProfile.fromJson(res.data ?? const <String, Object?>{});
+  }
+
+  /// Updates the editable personal fields (`PATCH /staff/profile`).
+  Future<StaffProfile> updateStaffProfile(StaffProfileUpdate update) async {
+    final res = await _send(
+      () => _dio.patch<Map<String, Object?>>(
+        '/staff/profile',
+        data: update.toJson(),
+      ),
+    );
+    return StaffProfile.fromJson(res.data ?? const <String, Object?>{});
   }
 
   /// Lists published SOPs assigned to [shopId], shaped as [ContentItem]s.
