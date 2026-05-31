@@ -59,8 +59,20 @@ class ZinmeApp extends StatelessWidget {
           value: sessionController,
         ),
         Provider<StaffApiClient>.value(value: apiClient),
-        ChangeNotifierProvider<StaffProfileController>(
+        ChangeNotifierProxyProvider<
+          StaffSessionController,
+          StaffProfileController
+        >(
           create: (_) => StaffProfileController(apiClient: apiClient),
+          update: (_, session, controller) {
+            final profileController =
+                controller ?? StaffProfileController(apiClient: apiClient);
+            profileController.setSessionUserId(
+              session.state.user?.id,
+              notify: false,
+            );
+            return profileController;
+          },
         ),
         Provider<SopRepository>.value(value: sopRepository),
         Provider<RecipeRepository>.value(value: recipeRepository),

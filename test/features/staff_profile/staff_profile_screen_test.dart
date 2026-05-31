@@ -9,6 +9,7 @@ import 'package:zinme_app/core/staff/staff_profile.dart';
 import 'package:zinme_app/core/staff/staff_profile_controller.dart';
 import 'package:zinme_app/core/staff/staff_session_controller.dart';
 import 'package:zinme_app/core/staff/staff_session_state.dart';
+import 'package:zinme_app/core/staff/staff_user.dart';
 import 'package:zinme_app/features/staff_profile/staff_profile_screen.dart';
 
 class _MockApi extends Mock implements StaffApiClient {}
@@ -74,6 +75,66 @@ void main() {
     expect(find.textContaining('Emergency'), findsNothing);
     expect(find.textContaining('preferredLanguage'), findsNothing);
     expect(find.text('Language'), findsNothing);
+
+    controller.dispose();
+  });
+
+  testWidgets('does not render cached profile for a different staff user', (
+    tester,
+  ) async {
+    final api = _MockApi();
+    var requestCount = 0;
+    when(() => api.getStaffProfile()).thenAnswer((_) async {
+      requestCount += 1;
+      return requestCount == 1
+          ? _profile()
+          : const StaffProfile(
+            id: 'p2',
+            email: 'lin@example.com',
+            displayName: 'Lin Lin',
+            accountRole: 'staff',
+            status: 'active',
+          );
+    });
+
+    final controller = StaffProfileController(apiClient: api);
+    controller.setSessionUserId('u1');
+    await controller.load();
+    expect(controller.profile?.displayName, 'Su Su');
+
+    final session = _MockSession();
+    when(() => session.state).thenReturn(
+      const StaffSessionState(
+        status: StaffSessionStatus.ready,
+        user: StaffUser(
+          id: 'u2',
+          email: 'lin@example.com',
+          displayName: 'Lin Lin',
+          requiresPasswordChange: false,
+        ),
+        activeShop: Shop(id: 's1', name: 'Wat Ket'),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<StaffProfileController>.value(
+            value: controller,
+          ),
+          ChangeNotifierProvider<StaffSessionController>.value(value: session),
+        ],
+        child: const MaterialApp(home: StaffProfileScreen()),
+      ),
+    );
+
+    expect(find.text('Su Su'), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Lin Lin'), findsOneWidget);
+    expect(find.text('Su Su'), findsNothing);
 
     controller.dispose();
   });

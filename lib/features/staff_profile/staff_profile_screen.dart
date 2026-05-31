@@ -18,24 +18,14 @@ class StaffProfileScreen extends StatefulWidget {
 
 class _StaffProfileScreenState extends State<StaffProfileScreen> {
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final controller = context.read<StaffProfileController>();
-      if (controller.profile == null &&
-          controller.status != StaffProfileStatus.loading) {
-        controller.load();
-      }
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     final controller = context.watch<StaffProfileController>();
-    final profile = controller.profile;
-    final activeShop =
-        context.watch<StaffSessionController>().state.activeShop?.name;
+    final sessionState = context.watch<StaffSessionController>().state;
+    final sessionUserId = sessionState.user?.id;
+    final profile = controller.profileForUser(sessionUserId);
+    final activeShop = sessionState.activeShop?.name;
+
+    _scheduleLoadIfNeeded(controller, sessionUserId, profile);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -64,6 +54,28 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
       ),
       body: _buildBody(context, controller, profile, activeShop),
     );
+  }
+
+  void _scheduleLoadIfNeeded(
+    StaffProfileController controller,
+    String? sessionUserId,
+    StaffProfile? profile,
+  ) {
+    if (profile != null) return;
+    if (controller.isLoadingFor(sessionUserId)) return;
+    if (controller.status == StaffProfileStatus.error) return;
+    if (sessionUserId == null && controller.profileUserId != null) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final currentUserId =
+          context.read<StaffSessionController>().state.user?.id;
+      if (currentUserId == null && controller.profileUserId != null) return;
+      if (controller.profileForUser(currentUserId) != null) return;
+      if (controller.isLoadingFor(currentUserId)) return;
+
+      controller.load(userId: currentUserId);
+    });
   }
 
   Widget _buildBody(
