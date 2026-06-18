@@ -99,6 +99,9 @@ class BookingController extends ChangeNotifier {
   /// [force] is set.
   Future<void> loadForShop(Shop? shop, {bool force = false}) async {
     if (shop == null) {
+      // Invalidate any in-flight fetch for the previous shop so it cannot
+      // restore stale slots after the scope is cleared.
+      _slotsToken++;
       _loadedShopId = null;
       _allSlots = const <OpenSlot>[];
       _positionFilter = null;
@@ -115,9 +118,13 @@ class BookingController extends ChangeNotifier {
       return;
     }
 
-    // A new shop resets the role filter (its positions differ); keep the date.
+    // A new shop resets the role filter (its positions differ) and drops the
+    // previous shop's slots immediately so the role chips — derived from
+    // _allSlots — never show another shop's roles during the load. The date
+    // filter is kept.
     if (shop.id != _loadedShopId) {
       _positionFilter = null;
+      _allSlots = const <OpenSlot>[];
     }
     _loadedShopId = shop.id;
     await _fetchSlots();

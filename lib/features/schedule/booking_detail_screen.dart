@@ -29,6 +29,12 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   bool _loadingDetail = true;
   bool _submitting = false;
 
+  // The list response carries no `overlap` flag, so booking must stay blocked
+  // until a successful detail load supplies it. A failed load is a blocking
+  // error, not a fall-through to the list slot (which would default overlap to
+  // false and wrongly enable booking on an overlapping shift).
+  String? _detailError;
+
   @override
   void initState() {
     super.initState();
@@ -36,6 +42,10 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   }
 
   Future<void> _loadDetail() async {
+    setState(() {
+      _loadingDetail = true;
+      _detailError = null;
+    });
     try {
       final detail = await widget.controller.slotDetail(widget.slot.id);
       if (!mounted) return;
@@ -44,9 +54,13 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
         _loadingDetail = false;
       });
     } catch (_) {
-      // Fall back to the list slot (no overlap flag) if the refresh fails.
       if (!mounted) return;
-      setState(() => _loadingDetail = false);
+      setState(() {
+        _loadingDetail = false;
+        _detailError =
+            'Could not load the latest shift details. Check your connection '
+            'and retry before booking.';
+      });
     }
   }
 
@@ -78,8 +92,6 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final slot = _slot;
-    // Block booking on a known overlap even though the server re-checks it.
-    final canBook = slot.isBookable && !slot.overlap && !_loadingDetail;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -93,72 +105,112 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
         children: [
           _DetailCard(slot: slot),
           const SizedBox(height: 16),
-          if (slot.overlap) ...[
-            const _Banner(
-              icon: Icons.warning_amber_rounded,
-              color: AppColors.amber,
-              title: 'Overlaps another shift',
-              message:
-                  'You already have a booked shift that overlaps this time. '
-                  'Cancel that one first if you want this slot.',
-            ),
-            const SizedBox(height: 12),
-          ] else if (slot.isFull) ...[
-            const _Banner(
-              icon: Icons.event_busy_outlined,
-              color: AppColors.silver,
-              title: 'Shift full',
-              message:
-                  'Every seat on this shift is taken. Check back later in '
-                  'case someone cancels.',
-            ),
-            const SizedBox(height: 12),
-          ] else if (slot.tooSoon) ...[
-            const _Banner(
-              icon: Icons.lock_clock,
-              color: AppColors.amber,
-              title: 'Not open yet',
-              message:
-                  'Shifts open for booking one week ahead. This one is still '
-                  'inside the one-week window — try again closer to the date.',
-            ),
-            const SizedBox(height: 12),
-          ],
-          SizedBox(
-            height: 50,
-            child: ElevatedButton.icon(
-              onPressed: canBook && !_submitting ? _book : null,
-              icon:
-                  _submitting
-                      ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                      : const Icon(Icons.check_circle_outline),
-              label: Text(_submitting ? 'Booking…' : 'Book this shift'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: AppColors.surfaceHigh,
-                disabledForegroundColor: Colors.white38,
-              ),
-            ),
-          ),
-          if (!canBook && !_loadingDetail) ...[
-            const SizedBox(height: 10),
-            Text(
-              _disabledReason(slot),
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white38, fontSize: 12),
-            ),
-          ],
+          ..._buildActionSection(slot),
         ],
       ),
     );
+  }
+
+  List<Widget> _buildActionSection(OpenSlot slot) {
+    // A failed detail load is blocking: the overlap flag is unknown, so booking
+    // stays disabled until a retry succeeds.
+    if (_detailError != null) {
+      return [
+        _Banner(
+          icon: Icons.cloud_off,
+          color: AppColors.amber,
+          title: 'Couldn’t check this shift',
+          message: _detailError!,
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 50,
+          child: OutlinedButton.icon(
+            onPressed: _loadingDetail ? null : _loadDetail,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: AppColors.surfaceHigh),
+            ),
+          ),
+        ),
+      ];
+    }
+
+    // Booking is only offered once a successful detail load supplies the live
+    // overlap / capacity / lead-time facts.
+    final canBook = !_loadingDetail && slot.isBookable && !slot.overlap;
+
+    return [
+      if (slot.overlap) ...[
+        const _Banner(
+          icon: Icons.warning_amber_rounded,
+          color: AppColors.amber,
+          title: 'Overlaps another shift',
+          message:
+              'You already have a booked shift that overlaps this time. '
+              'Cancel that one first if you want this slot.',
+        ),
+        const SizedBox(height: 12),
+      ] else if (slot.isFull) ...[
+        const _Banner(
+          icon: Icons.event_busy_outlined,
+          color: AppColors.silver,
+          title: 'Shift full',
+          message:
+              'Every seat on this shift is taken. Check back later in '
+              'case someone cancels.',
+        ),
+        const SizedBox(height: 12),
+      ] else if (slot.tooSoon) ...[
+        const _Banner(
+          icon: Icons.lock_clock,
+          color: AppColors.amber,
+          title: 'Not open yet',
+          message:
+              'Shifts open for booking one week ahead. This one is still '
+              'inside the one-week window — try again closer to the date.',
+        ),
+        const SizedBox(height: 12),
+      ],
+      SizedBox(
+        height: 50,
+        child: ElevatedButton.icon(
+          onPressed: canBook && !_submitting ? _book : null,
+          icon:
+              _submitting || _loadingDetail
+                  ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                  : const Icon(Icons.check_circle_outline),
+          label: Text(
+            _loadingDetail
+                ? 'Checking…'
+                : (_submitting ? 'Booking…' : 'Book this shift'),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: AppColors.surfaceHigh,
+            disabledForegroundColor: Colors.white38,
+          ),
+        ),
+      ),
+      if (!canBook && !_loadingDetail) ...[
+        const SizedBox(height: 10),
+        Text(
+          _disabledReason(slot),
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.white38, fontSize: 12),
+        ),
+      ],
+    ];
   }
 
   String _disabledReason(OpenSlot slot) {
