@@ -254,7 +254,7 @@ class _DetailCard extends StatelessWidget {
           const Divider(height: 24, color: AppColors.surfaceHigh),
           _DetailRow(
             icon: Icons.calendar_today,
-            label: formatSlotDate(DateTime.parse(slot.slotDate)),
+            label: formatSlotDateString(slot.slotDate),
           ),
           const SizedBox(height: 10),
           _DetailRow(

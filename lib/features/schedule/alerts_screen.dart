@@ -179,7 +179,7 @@ class _AlertCard extends StatelessWidget {
     final slotDate = payload['slotDate'];
     final dateText =
         slotDate is String && slotDate.isNotEmpty
-            ? formatSlotDate(DateTime.parse(slotDate))
+            ? formatSlotDateString(slotDate)
             : 'one of your shifts';
 
     if (alert.type == 'slot_time_changed') {
