@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 
 import '../attendance/attendance_models.dart';
+import '../booking/booking_models.dart';
 import '../models/content_item.dart';
 import '../staff/shop.dart';
 import '../staff/staff_profile.dart';
@@ -239,6 +240,98 @@ class StaffApiClient {
         .whereType<Map<String, Object?>>()
         .map(AttendanceSession.fromJson)
         .toList(growable: false);
+  }
+
+  // ── Staff self-service booking (`/staff/scheduling/*`) ──────────────────────
+
+  /// Browse open slots for [shopId]. Optional [positionId] (role) and [date]
+  /// (`YYYY-MM-DD`) narrow the list. Backend returns only published, future
+  /// slots with a free seat; each carries `remaining` and a `tooSoon` flag.
+  Future<List<OpenSlot>> listOpenSlots({
+    required String shopId,
+    String? positionId,
+    DateTime? date,
+  }) async {
+    final res = await _send(
+      () => _dio.get<Map<String, Object?>>(
+        '/staff/scheduling/shift-slots',
+        queryParameters: <String, Object?>{
+          'shopId': shopId,
+          if (positionId != null) 'positionId': positionId,
+          if (date != null) 'date': _ymd(date),
+        },
+      ),
+    );
+    final list = (res.data?['slots'] as List<Object?>?) ?? const <Object?>[];
+    return list
+        .whereType<Map<String, Object?>>()
+        .map(OpenSlot.fromJson)
+        .toList(growable: false);
+  }
+
+  /// Slot detail including the `overlap` flag versus the caller's bookings.
+  Future<OpenSlot> getSlot(String slotId) async {
+    final res = await _send(
+      () => _dio.get<Map<String, Object?>>(
+        '/staff/scheduling/shift-slots/$slotId',
+      ),
+    );
+    return OpenSlot.fromJson(_map(res.data?['slot']));
+  }
+
+  /// Book [shiftSlotId]. Throws [ClientApiException] with a `code` of
+  /// `TOO_SOON` / `SLOT_FULL` / `OVERLAP` / `ALREADY_BOOKED` on rule violations.
+  Future<String> createBooking(String shiftSlotId) async {
+    final res = await _send(
+      () => _dio.post<Map<String, Object?>>(
+        '/staff/scheduling/bookings',
+        data: <String, Object?>{'shiftSlotId': shiftSlotId},
+      ),
+    );
+    return res.data?['bookingId'] as String? ?? '';
+  }
+
+  /// The caller's upcoming bookings, soonest first.
+  Future<List<MyBooking>> listMyBookings() async {
+    final res = await _send(
+      () => _dio.get<Map<String, Object?>>('/staff/scheduling/bookings/my'),
+    );
+    final list = (res.data?['bookings'] as List<Object?>?) ?? const <Object?>[];
+    return list
+        .whereType<Map<String, Object?>>()
+        .map(MyBooking.fromJson)
+        .toList(growable: false);
+  }
+
+  /// Cancel own booking. Throws [ClientApiException] with code
+  /// `CANCEL_WINDOW_CLOSED` when inside the 48h window.
+  Future<void> cancelBooking(String bookingId) async {
+    await _send(
+      () => _dio.delete<Map<String, Object?>>(
+        '/staff/scheduling/bookings/$bookingId',
+      ),
+    );
+  }
+
+  /// Schedule-change alerts for the signed-in staff member.
+  Future<List<ScheduleAlert>> listScheduleAlerts() async {
+    final res = await _send(
+      () => _dio.get<Map<String, Object?>>('/staff/scheduling/alerts'),
+    );
+    final list = (res.data?['alerts'] as List<Object?>?) ?? const <Object?>[];
+    return list
+        .whereType<Map<String, Object?>>()
+        .map(ScheduleAlert.fromJson)
+        .toList(growable: false);
+  }
+
+  /// Mark a schedule alert read.
+  Future<void> markAlertRead(String alertId) async {
+    await _send(
+      () => _dio.post<Map<String, Object?>>(
+        '/staff/scheduling/alerts/$alertId/read',
+      ),
+    );
   }
 
   Future<void> clearSession() async {

@@ -8,6 +8,7 @@ import 'core/attendance/attendance_repository.dart';
 import 'core/attendance/location_service.dart';
 import 'core/auth/pin_credential_store.dart';
 import 'core/auth/pin_lock_service.dart';
+import 'core/booking/booking_repository.dart';
 import 'core/firestore/favorites_repository.dart';
 import 'core/preferences/user_preferences_controller.dart';
 import 'core/recipes/recipe_repository.dart';
@@ -65,6 +66,9 @@ class ZinmeApp extends StatelessWidget {
         Provider<SopRepository>.value(value: sopRepository),
         Provider<RecipeRepository>.value(value: recipeRepository),
         Provider<AttendanceRepository>.value(value: attendanceRepository),
+        Provider<BookingRepository>(
+          create: (_) => RemoteBookingRepository(apiClient),
+        ),
         Provider<LocationProvider>.value(value: locationProvider),
         Provider<FavoritesRepository>.value(value: favoritesRepository),
         ChangeNotifierProvider<UserPreferencesController>.value(

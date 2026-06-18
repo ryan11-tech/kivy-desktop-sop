@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../core/attendance/attendance_controller.dart';
 import '../../core/attendance/attendance_repository.dart';
 import '../../core/attendance/location_service.dart';
+import '../../core/booking/booking_controller.dart';
+import '../../core/booking/booking_repository.dart';
 import '../../core/firestore/favorites_repository.dart';
 import '../../core/models/category.dart';
 import '../../core/models/content_item.dart';
@@ -20,6 +22,7 @@ import '../../widgets/content_chips.dart';
 import '../attendance/attendance_history_screen.dart';
 import '../category/category_screen.dart';
 import '../item_detail/item_detail_screen.dart';
+import '../schedule/alerts_screen.dart';
 import '../schedule/schedule_screen.dart';
 import '../settings/settings_screen.dart';
 import 'attendance_card.dart';
@@ -50,6 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
   SopCatalogController? _catalog;
   RecipeCatalogController? _recipeCatalog;
   AttendanceController? _attendance;
+  BookingController? _booking;
   StaffSessionController? _session;
   Set<String> _favoriteIds = {};
   String? _favoriteScopeKey;
@@ -69,6 +73,8 @@ class _HomeScreenState extends State<HomeScreen> {
       context.read<AttendanceRepository>(),
       context.read<LocationProvider>(),
     )..addListener(_onCatalogChanged);
+    _booking ??= BookingController(context.read<BookingRepository>())
+      ..addListener(_onCatalogChanged);
 
     final session = context.read<StaffSessionController>();
     if (!identical(session, _session)) {
@@ -98,6 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _catalog?.loadForShop(shop);
     _recipeCatalog?.loadForShop(shop);
     _attendance?.loadForShop(shop);
+    _booking?.loadForShop(shop);
   }
 
   void _syncFavorites() {
@@ -119,6 +126,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _recipeCatalog?.dispose();
     _attendance?.removeListener(_onCatalogChanged);
     _attendance?.dispose();
+    _booking?.removeListener(_onCatalogChanged);
+    _booking?.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -202,6 +211,7 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
         ],
+        if (_navIndex == 2 && _booking != null) _buildAlertsBell(),
         Container(
           margin: const EdgeInsets.only(right: 8),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -255,7 +265,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSelectedPage() {
     final member = _effectiveMember;
     if (_navIndex == 2) {
-      return ScheduleScreen(isAdmin: member.isAdmin, embedded: true);
+      return ScheduleScreen(controller: _booking!);
     }
     if (_navIndex == 3) {
       return SettingsScreen(isAdmin: member.isAdmin, embedded: true);
@@ -276,6 +286,28 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openAttendanceHistory() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const AttendanceHistoryScreen()),
+    );
+  }
+
+  // Schedule-change alerts bell with an unread badge (T066).
+  Widget _buildAlertsBell() {
+    final unread = _booking?.unreadAlertCount ?? 0;
+    return IconButton(
+      tooltip: 'Schedule alerts',
+      icon: Badge(
+        isLabelVisible: unread > 0,
+        label: Text('$unread'),
+        child: const Icon(Icons.notifications_outlined, color: Colors.white),
+      ),
+      onPressed: () {
+        final booking = _booking;
+        if (booking == null) return;
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => AlertsScreen(controller: booking),
+          ),
+        );
+      },
     );
   }
 
