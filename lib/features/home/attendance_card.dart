@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/attendance/attendance_controller.dart';
 import '../../core/attendance/attendance_models.dart';
+import '../../core/booking/booking_models.dart';
 import '../../theme/app_colors.dart';
 
 /// Clock in / clock out card shown near the top of the home screen for the
@@ -13,11 +14,20 @@ class AttendanceCard extends StatefulWidget {
   const AttendanceCard({
     required this.controller,
     required this.onViewHistory,
+    this.nextShift,
+    this.todayShiftStart,
     super.key,
   });
 
   final AttendanceController controller;
   final VoidCallback onViewHistory;
+
+  /// The staff member's nearest upcoming booked shift (a tie-in to scheduling),
+  /// shown when they are not clocked in. Null when there is no booking.
+  final MyBooking? nextShift;
+
+  /// Start of today's booked shift, used to note lateness while clocked in.
+  final DateTime? todayShiftStart;
 
   @override
   State<AttendanceCard> createState() => _AttendanceCardState();
@@ -164,6 +174,7 @@ class _AttendanceCardState extends State<AttendanceCard> {
         'Since ${_formatLocalTime(session.clockInAt)}',
         style: const TextStyle(color: Colors.white54, fontSize: 12),
       ),
+      ..._latenessNote(session),
       const SizedBox(height: 14),
       _actionButton(
         context,
@@ -172,6 +183,33 @@ class _AttendanceCardState extends State<AttendanceCard> {
         label: 'Clock out',
         icon: Icons.logout,
         color: AppColors.primary,
+      ),
+    ];
+  }
+
+  // Lateness vs the booked shift start, when this clock-in is for a shift the
+  // staff member booked today and they clocked in after it began.
+  List<Widget> _latenessNote(AttendanceOpenSession session) {
+    final shiftStart = widget.todayShiftStart;
+    if (shiftStart == null) return const [];
+    final minutesLate =
+        session.clockInAt.toLocal().difference(shiftStart).inMinutes;
+    if (minutesLate <= 0) return const [];
+    return [
+      const SizedBox(height: 6),
+      Row(
+        children: [
+          const Icon(
+            Icons.watch_later_outlined,
+            size: 14,
+            color: AppColors.amber,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '$minutesLate min after your ${_formatClock(shiftStart)} shift start',
+            style: const TextStyle(color: AppColors.amber, fontSize: 12),
+          ),
+        ],
       ),
     ];
   }
@@ -185,6 +223,7 @@ class _AttendanceCardState extends State<AttendanceCard> {
         'Not clocked in',
         style: TextStyle(color: Colors.white, fontSize: 16),
       ),
+      ..._nextShiftRow(),
       const SizedBox(height: 14),
       _actionButton(
         context,
@@ -193,6 +232,56 @@ class _AttendanceCardState extends State<AttendanceCard> {
         label: 'Clock in',
         icon: Icons.login,
         color: AppColors.success,
+      ),
+    ];
+  }
+
+  // "Next shift" tie-in: the staff member's nearest upcoming booked shift.
+  List<Widget> _nextShiftRow() {
+    final shift = widget.nextShift;
+    if (shift == null) return const [];
+    return [
+      const SizedBox(height: 12),
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.gold.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.event_available, size: 18, color: AppColors.gold),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Next shift',
+                    style: TextStyle(
+                      color: AppColors.gold,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${_formatShiftDate(shift.startDateTime)} · ${shift.startHm}–${shift.endHm}',
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                  ),
+                  Text(
+                    '${shift.positionName} · ${shift.shopName}',
+                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     ];
   }
@@ -357,4 +446,36 @@ String _formatLocalTime(DateTime utc) {
   final hour = local.hour.toString().padLeft(2, '0');
   final minute = local.minute.toString().padLeft(2, '0');
   return '$hour:$minute';
+}
+
+String _formatClock(DateTime local) {
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '$hour:$minute';
+}
+
+const _weekdayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const _monthNames = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+String _formatShiftDate(DateTime date) {
+  final today = DateTime.now();
+  final isToday =
+      date.year == today.year &&
+      date.month == today.month &&
+      date.day == today.day;
+  if (isToday) return 'Today';
+  return '${_weekdayNames[date.weekday - 1]}, ${date.day} ${_monthNames[date.month - 1]}';
 }

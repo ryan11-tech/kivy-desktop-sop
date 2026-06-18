@@ -5,6 +5,7 @@ import '../../core/attendance/attendance_controller.dart';
 import '../../core/attendance/attendance_repository.dart';
 import '../../core/attendance/location_service.dart';
 import '../../core/booking/booking_controller.dart';
+import '../../core/booking/booking_models.dart';
 import '../../core/booking/booking_repository.dart';
 import '../../core/firestore/favorites_repository.dart';
 import '../../core/models/category.dart';
@@ -276,6 +277,8 @@ class _HomeScreenState extends State<HomeScreen> {
           AttendanceCard(
             controller: _attendance!,
             onViewHistory: _openAttendanceHistory,
+            nextShift: _nextShift,
+            todayShiftStart: _todayShiftStart,
           ),
         _buildSegmentBar(),
         Expanded(child: _buildRefreshableBody()),
@@ -287,6 +290,38 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const AttendanceHistoryScreen()),
     );
+  }
+
+  // Nearest upcoming booked shift (bookings are sorted soonest-first), for the
+  // attendance card's "next shift" tie-in. Null when there are none upcoming.
+  MyBooking? get _nextShift {
+    final bookings = _booking?.bookings ?? const <MyBooking>[];
+    final now = DateTime.now();
+    for (final booking in bookings) {
+      if (booking.startDateTime.isAfter(now)) return booking;
+    }
+    return null;
+  }
+
+  // Start of the booked shift currently being worked today (latest start that is
+  // not in the future), used to flag a late clock-in. Null when none today.
+  DateTime? get _todayShiftStart {
+    final bookings = _booking?.bookings ?? const <MyBooking>[];
+    final now = DateTime.now();
+    DateTime? best;
+    for (final booking in bookings) {
+      final start = booking.startDateTime;
+      final isToday =
+          start.year == now.year &&
+          start.month == now.month &&
+          start.day == now.day;
+      if (isToday &&
+          !start.isAfter(now) &&
+          (best == null || start.isAfter(best))) {
+        best = start;
+      }
+    }
+    return best;
   }
 
   // Schedule-change alerts bell with an unread badge (T066).

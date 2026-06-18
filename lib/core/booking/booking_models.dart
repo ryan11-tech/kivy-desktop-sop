@@ -117,6 +117,18 @@ class MyBooking {
 
   String get startHm => _hm(startTime);
   String get endHm => _hm(endTime);
+
+  /// The slot start as a local wall-clock DateTime. The backend already resolved
+  /// these to the shop's local day/time, so they are parsed without timezone
+  /// conversion (the device is expected to run on shop-local time).
+  DateTime get startDateTime => _slotDateTime(slotDate, startTime);
+  DateTime get endDateTime => _slotDateTime(slotDate, endTime);
+}
+
+DateTime _slotDateTime(String slotDate, String time) {
+  // time is 'HH:MM:SS' (or 'HH:MM'); pad to a full ISO local timestamp.
+  final hms = time.length >= 8 ? time : '${_hm(time)}:00';
+  return DateTime.tryParse('${slotDate}T$hms') ?? DateTime.now();
 }
 
 /// A schedule-change alert (`GET /scheduling/alerts`): a booked slot was
