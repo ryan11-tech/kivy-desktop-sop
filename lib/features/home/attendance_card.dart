@@ -188,12 +188,12 @@ class _AttendanceCardState extends State<AttendanceCard> {
   }
 
   // Lateness vs the booked shift start, when this clock-in is for a shift the
-  // staff member booked today and they clocked in after it began.
+  // staff member is working at the active shop and clocked in after it began.
+  // Both times are UTC instants, so the comparison is timezone-independent.
   List<Widget> _latenessNote(AttendanceOpenSession session) {
     final shiftStart = widget.todayShiftStart;
     if (shiftStart == null) return const [];
-    final minutesLate =
-        session.clockInAt.toLocal().difference(shiftStart).inMinutes;
+    final minutesLate = session.clockInAt.difference(shiftStart).inMinutes;
     if (minutesLate <= 0) return const [];
     return [
       const SizedBox(height: 6),
@@ -206,7 +206,7 @@ class _AttendanceCardState extends State<AttendanceCard> {
           ),
           const SizedBox(width: 6),
           Text(
-            '$minutesLate min after your ${_formatClock(shiftStart)} shift start',
+            '$minutesLate min after your ${_formatBangkok(shiftStart)} shift start',
             style: const TextStyle(color: AppColors.amber, fontSize: 12),
           ),
         ],
@@ -270,7 +270,7 @@ class _AttendanceCardState extends State<AttendanceCard> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${_formatShiftDate(shift.startDateTime)} · ${shift.startHm}–${shift.endHm}',
+                    '${_formatShiftDate(shift.slotDate)} · ${shift.startHm}–${shift.endHm}',
                     style: const TextStyle(color: Colors.white, fontSize: 13),
                   ),
                   Text(
@@ -448,9 +448,11 @@ String _formatLocalTime(DateTime utc) {
   return '$hour:$minute';
 }
 
-String _formatClock(DateTime local) {
-  final hour = local.hour.toString().padLeft(2, '0');
-  final minute = local.minute.toString().padLeft(2, '0');
+// Formats a UTC instant as Asia/Bangkok (+07:00) HH:MM.
+String _formatBangkok(DateTime utc) {
+  final bangkok = utc.add(const Duration(hours: 7));
+  final hour = bangkok.hour.toString().padLeft(2, '0');
+  final minute = bangkok.minute.toString().padLeft(2, '0');
   return '$hour:$minute';
 }
 
@@ -470,12 +472,16 @@ const _monthNames = [
   'Dec',
 ];
 
-String _formatShiftDate(DateTime date) {
-  final today = DateTime.now();
-  final isToday =
-      date.year == today.year &&
-      date.month == today.month &&
-      date.day == today.day;
-  if (isToday) return 'Today';
+// `slotDate` is a shop-local `YYYY-MM-DD`. Labels "Today" when it matches the
+// current Bangkok date, else "Wkd, D Mon".
+String _formatShiftDate(String slotDate) {
+  final bangkokNow = DateTime.now().toUtc().add(const Duration(hours: 7));
+  final todayStr =
+      '${bangkokNow.year.toString().padLeft(4, '0')}-'
+      '${bangkokNow.month.toString().padLeft(2, '0')}-'
+      '${bangkokNow.day.toString().padLeft(2, '0')}';
+  if (slotDate == todayStr) return 'Today';
+  final date = DateTime.tryParse('${slotDate}T00:00:00');
+  if (date == null) return slotDate;
   return '${_weekdayNames[date.weekday - 1]}, ${date.day} ${_monthNames[date.month - 1]}';
 }

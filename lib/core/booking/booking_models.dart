@@ -80,6 +80,7 @@ class MyBooking {
   const MyBooking({
     required this.bookingId,
     required this.shiftSlotId,
+    required this.shopId,
     required this.shopName,
     required this.positionName,
     required this.slotDate,
@@ -93,6 +94,7 @@ class MyBooking {
     return MyBooking(
       bookingId: json['bookingId'] as String? ?? '',
       shiftSlotId: json['shiftSlotId'] as String? ?? '',
+      shopId: json['shopId'] as String? ?? '',
       shopName: json['shopName'] as String? ?? '',
       positionName: json['positionName'] as String? ?? '',
       slotDate: json['slotDate'] as String? ?? '',
@@ -105,6 +107,7 @@ class MyBooking {
 
   final String bookingId;
   final String shiftSlotId;
+  final String shopId;
   final String shopName;
   final String positionName;
   final String slotDate;
@@ -118,17 +121,22 @@ class MyBooking {
   String get startHm => _hm(startTime);
   String get endHm => _hm(endTime);
 
-  /// The slot start as a local wall-clock DateTime. The backend already resolved
-  /// these to the shop's local day/time, so they are parsed without timezone
-  /// conversion (the device is expected to run on shop-local time).
-  DateTime get startDateTime => _slotDateTime(slotDate, startTime);
-  DateTime get endDateTime => _slotDateTime(slotDate, endTime);
+  /// The slot start/end as a UTC instant. The backend resolves slotDate+time to
+  /// the shop's local wall-clock (Asia/Bangkok, +07:00, no DST), so they are
+  /// anchored to that offset and returned as UTC — comparisons are then correct
+  /// regardless of the device timezone. Null when the strings fail to parse
+  /// (callers skip such bookings rather than guessing a time).
+  DateTime? get startInstant => bangkokWallClockToUtc(slotDate, startTime);
+  DateTime? get endInstant => bangkokWallClockToUtc(slotDate, endTime);
 }
 
-DateTime _slotDateTime(String slotDate, String time) {
-  // time is 'HH:MM:SS' (or 'HH:MM'); pad to a full ISO local timestamp.
+/// Parses a shop-local (Asia/Bangkok, +07:00) `slotDate`+`time` into a UTC
+/// instant. Returns null on malformed input.
+DateTime? bangkokWallClockToUtc(String slotDate, String time) {
+  if (slotDate.isEmpty || time.isEmpty) return null;
+  // time is 'HH:MM:SS' (or 'HH:MM'); build a full offset-qualified ISO string.
   final hms = time.length >= 8 ? time : '${_hm(time)}:00';
-  return DateTime.tryParse('${slotDate}T$hms') ?? DateTime.now();
+  return DateTime.tryParse('${slotDate}T$hms+07:00')?.toUtc();
 }
 
 /// A schedule-change alert (`GET /scheduling/alerts`): a booked slot was

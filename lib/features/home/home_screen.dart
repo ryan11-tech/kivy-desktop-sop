@@ -292,36 +292,44 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Nearest upcoming booked shift (bookings are sorted soonest-first), for the
-  // attendance card's "next shift" tie-in. Null when there are none upcoming.
+  // Bookings at the ACTIVE shop only — the attendance card is shop-scoped, so a
+  // next-shift / lateness note must not be computed from another shop's booking.
+  List<MyBooking> get _activeShopBookings {
+    final shopId = _session?.state.activeShop?.id;
+    if (shopId == null) return const <MyBooking>[];
+    return (_booking?.bookings ?? const <MyBooking>[])
+        .where((booking) => booking.shopId == shopId)
+        .toList(growable: false);
+  }
+
+  // Nearest upcoming booked shift at the active shop (bookings are sorted
+  // soonest-first), for the card's "next shift" tie-in. Null when none upcoming
+  // or the booking time fails to parse.
   MyBooking? get _nextShift {
-    final bookings = _booking?.bookings ?? const <MyBooking>[];
-    final now = DateTime.now();
-    for (final booking in bookings) {
-      if (booking.startDateTime.isAfter(now)) return booking;
+    final nowUtc = DateTime.now().toUtc();
+    for (final booking in _activeShopBookings) {
+      final start = booking.startInstant;
+      if (start != null && start.isAfter(nowUtc)) return booking;
     }
     return null;
   }
 
-  // Start of the booked shift currently being worked today (latest start that is
-  // not in the future), used to flag a late clock-in. Null when none today.
+  // Start (UTC instant) of the active-shop shift currently in progress — the one
+  // whose [start, end) window contains now — used to flag a late clock-in. Null
+  // when no shift is in progress.
   DateTime? get _todayShiftStart {
-    final bookings = _booking?.bookings ?? const <MyBooking>[];
-    final now = DateTime.now();
-    DateTime? best;
-    for (final booking in bookings) {
-      final start = booking.startDateTime;
-      final isToday =
-          start.year == now.year &&
-          start.month == now.month &&
-          start.day == now.day;
-      if (isToday &&
-          !start.isAfter(now) &&
-          (best == null || start.isAfter(best))) {
-        best = start;
+    final nowUtc = DateTime.now().toUtc();
+    for (final booking in _activeShopBookings) {
+      final start = booking.startInstant;
+      final end = booking.endInstant;
+      if (start != null &&
+          end != null &&
+          !start.isAfter(nowUtc) &&
+          end.isAfter(nowUtc)) {
+        return start;
       }
     }
-    return best;
+    return null;
   }
 
   // Schedule-change alerts bell with an unread badge (T066).
