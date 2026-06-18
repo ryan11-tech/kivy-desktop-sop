@@ -238,9 +238,14 @@ class BookingController extends ChangeNotifier {
   /// existing bookings (the list response omits it).
   Future<OpenSlot> slotDetail(String slotId) => _repository.slot(slotId);
 
-  /// Books [slotId]. Returns null on success, or a user-facing message on
-  /// failure. On success, refreshes open slots and the caller's bookings.
-  Future<String?> book(String slotId) async {
+  /// Books [slotId]. [shopId] is the slot's shop — the call is rejected if it no
+  /// longer matches the active shop (a detail route can outlive a shop switch),
+  /// so a stale cross-shop booking is never POSTed. Returns null on success, or a
+  /// user-facing message.
+  Future<String?> book(String slotId, {required String shopId}) async {
+    if (shopId != _loadedShopId) {
+      return 'Your active shop changed. Reopen this shift to book it.';
+    }
     try {
       await _repository.book(slotId);
     } on ClientApiException catch (error) {
@@ -253,10 +258,14 @@ class BookingController extends ChangeNotifier {
     return null;
   }
 
-  /// Cancels [bookingId]. Returns null on success, or a user-facing message.
-  /// On success, refreshes the caller's bookings and open slots (the seat
-  /// reopens).
-  Future<String?> cancel(String bookingId) async {
+  /// Cancels [bookingId]. [shopId] is the booking's shop — the call is rejected
+  /// if it no longer matches the active shop (a cancel sheet can outlive a shop
+  /// switch), so a stale cross-shop cancellation never DELETEs and reopens a seat
+  /// in the wrong shop. Returns null on success, or a user-facing message.
+  Future<String?> cancel(String bookingId, {required String shopId}) async {
+    if (shopId != _loadedShopId) {
+      return 'Your active shop changed. Reopen My Shifts to manage this booking.';
+    }
     try {
       await _repository.cancel(bookingId);
     } on ClientApiException catch (error) {

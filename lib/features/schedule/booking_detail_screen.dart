@@ -70,7 +70,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     final navigator = Navigator.of(context);
     setState(() => _submitting = true);
 
-    final error = await widget.controller.book(_slot.id);
+    final error = await widget.controller.book(_slot.id, shopId: _slot.shopId);
     if (!mounted) return;
     setState(() => _submitting = false);
 

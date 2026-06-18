@@ -54,6 +54,8 @@ class _FakeBookingRepo implements BookingRepository {
 
   Object? bookError;
   Object? cancelError;
+  int bookCalls = 0;
+  int cancelCalls = 0;
 
   @override
   Future<List<OpenSlot>> openSlots({
@@ -73,6 +75,7 @@ class _FakeBookingRepo implements BookingRepository {
 
   @override
   Future<String> book(String shiftSlotId) async {
+    bookCalls++;
     final error = bookError;
     if (error != null) throw error;
     return 'booking-1';
@@ -83,6 +86,7 @@ class _FakeBookingRepo implements BookingRepository {
 
   @override
   Future<void> cancel(String bookingId) async {
+    cancelCalls++;
     final error = cancelError;
     if (error != null) throw error;
   }
@@ -157,30 +161,50 @@ void main() {
   test('book maps a SLOT_FULL rejection to a friendly message', () async {
     final repo = _FakeBookingRepo();
     final controller = BookingController(repo);
+    await controller.loadForShop(shopA);
     repo.bookError = const ClientApiException(
       'full',
       statusCode: 409,
       code: 'SLOT_FULL',
     );
 
-    final message = await controller.book('s1');
+    final message = await controller.book('s1', shopId: 'a');
     expect(message, 'This shift is already full.');
   });
 
   test('cancel maps CANCEL_WINDOW_CLOSED to a friendly message', () async {
     final repo = _FakeBookingRepo();
     final controller = BookingController(repo);
+    await controller.loadForShop(shopA);
     repo.cancelError = const ClientApiException(
       'closed',
       statusCode: 409,
       code: 'CANCEL_WINDOW_CLOSED',
     );
 
-    final message = await controller.cancel('b1');
+    final message = await controller.cancel('b1', shopId: 'a');
     expect(
       message,
       'Cancellation closes 48 hours before the shift. Contact your manager.',
     );
+  });
+
+  test('book/cancel reject a stale shop id without hitting the API', () async {
+    final repo = _FakeBookingRepo();
+    final controller = BookingController(repo);
+    await controller.loadForShop(shopA);
+
+    // The active shop switched to B; a detail route / cancel sheet still holds a
+    // shop-A slot/booking. The action must be rejected, no API call made.
+    await controller.loadForShop(shopB);
+
+    final bookMsg = await controller.book('s1', shopId: 'a');
+    expect(bookMsg, contains('active shop changed'));
+    expect(repo.bookCalls, 0);
+
+    final cancelMsg = await controller.cancel('b1', shopId: 'a');
+    expect(cancelMsg, contains('active shop changed'));
+    expect(repo.cancelCalls, 0);
   });
 
   test(

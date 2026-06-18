@@ -460,7 +460,10 @@ class _MyBookingsView extends StatelessWidget {
     );
     if (confirmed != true) return;
 
-    final error = await controller.cancel(booking.bookingId);
+    final error = await controller.cancel(
+      booking.bookingId,
+      shopId: booking.shopId,
+    );
     messenger.showSnackBar(
       SnackBar(
         content: Text(error ?? 'Shift cancelled.'),
