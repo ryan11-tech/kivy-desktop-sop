@@ -1,1710 +1,685 @@
 import 'package:flutter/material.dart';
 
+import '../../core/booking/booking_controller.dart';
+import '../../core/booking/booking_models.dart';
 import '../../theme/app_colors.dart';
+import 'booking_detail_screen.dart';
+import 'schedule_format.dart';
 
-// ── Simple data models (Phase 1 — local only) ─────────────────────────────────
-
-class ShiftDef {
-  const ShiftDef({
-    required this.id,
-    required this.name,
-    required this.startTime,
-    required this.endTime,
-    required this.color,
-  });
-  final String id;
-  final String name;
-  final String startTime;
-  final String endTime;
-  final Color color;
-}
-
-class StaffMember {
-  const StaffMember({required this.id, required this.name});
-  final String id;
-  final String name;
-}
-
-class ShiftEntry {
-  ShiftEntry({required this.shiftId, List<String>? staffIds})
-    : staffIds = staffIds ?? [];
-  final String shiftId;
-  final List<String> staffIds;
-}
-
-class TaskItem {
-  TaskItem({
-    required this.id,
-    required this.name,
-    required this.days,
-    List<String>? assignedStaff,
-  }) : assignedStaff = assignedStaff ?? [];
-  final String id;
-  final String name;
-  final List<String> days;
-  final List<String> assignedStaff;
-}
-
-// ── Mock data ─────────────────────────────────────────────────────────────────
-
-const _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const _dayFull = {
-  'Mon': 'Monday',
-  'Tue': 'Tuesday',
-  'Wed': 'Wednesday',
-  'Thu': 'Thursday',
-  'Fri': 'Friday',
-  'Sat': 'Saturday',
-  'Sun': 'Sunday',
-};
-
-// ── ScheduleScreen ────────────────────────────────────────────────────────────
-
+/// Staff self-service schedule: browse open shifts and book them, or review and
+/// cancel the caller's upcoming bookings. Replaces the old local-only mock; the
+/// manager-facing roster lives in the web portal.
+///
+/// Rendered inside [HomeScreen]'s Scaffold (no Scaffold of its own). State lives
+/// in the [BookingController], which [HomeScreen] drives from the active shop.
 class ScheduleScreen extends StatefulWidget {
-  const ScheduleScreen({
-    this.isAdmin = false,
-    this.embedded = false,
-    super.key,
-  });
-  final bool isAdmin;
-  final bool embedded;
+  const ScheduleScreen({required this.controller, super.key});
+
+  final BookingController controller;
 
   @override
   State<ScheduleScreen> createState() => _ScheduleScreenState();
 }
 
+enum _ScheduleTab { browse, mine }
+
 class _ScheduleScreenState extends State<ScheduleScreen> {
-  String _activeDay = 'Mon';
-  int _tabIndex = 0; // 0=Schedule, 1=Tasks, 2=Manage
+  _ScheduleTab _tab = _ScheduleTab.browse;
 
-  // Local state (Phase 1)
-  final List<ShiftDef> _shifts = [
-    const ShiftDef(
-      id: 'morning',
-      name: 'Morning Shift',
-      startTime: '07:00',
-      endTime: '13:00',
-      color: AppColors.gold,
-    ),
-    const ShiftDef(
-      id: 'evening',
-      name: 'Evening Shift',
-      startTime: '13:00',
-      endTime: '20:00',
-      color: AppColors.cold,
-    ),
-  ];
-
-  final List<StaffMember> _staff = [
-    const StaffMember(id: 's1', name: 'Staff A'),
-    const StaffMember(id: 's2', name: 'Staff B'),
-  ];
-
-  final Map<String, List<ShiftEntry>> _schedule = {
-    for (final d in _days) d: [],
-  };
-
-  final List<TaskItem> _tasks = [];
+  BookingController get _controller => widget.controller;
 
   @override
   Widget build(BuildContext context) {
-    final body = Column(
-      children: [
-        const Divider(height: 1, color: AppColors.surfaceHigh),
-        _buildTabBar(),
-        const Divider(height: 1, color: AppColors.surfaceHigh),
-        Expanded(
-          child:
-              _tabIndex == 0
-                  ? _buildScheduleTab()
-                  : _tabIndex == 1
-                  ? _buildTasksTab()
-                  : _buildManageTab(),
-        ),
-      ],
-    );
-
-    if (widget.embedded) {
-      return ColoredBox(color: AppColors.background, child: body);
-    }
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: const Text(
-          'Staff Schedule',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: widget.isAdmin ? AppColors.primary : AppColors.surfaceHigh,
-              borderRadius: BorderRadius.circular(20),
+    // HomeScreen already rebuilds on controller changes, but listen here too so
+    // the screen stays correct if shown without that parent wiring.
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        return Column(
+          children: [
+            _buildTabBar(),
+            Expanded(
+              child:
+                  _tab == _ScheduleTab.browse
+                      ? _BrowseView(controller: _controller)
+                      : _MyBookingsView(controller: _controller),
             ),
-            child: Text(
-              widget.isAdmin ? 'ADMIN' : 'STAFF',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-      body: body,
+          ],
+        );
+      },
     );
   }
-
-  // ── Tab Bar ──────────────────────────────────────────────────────────────
 
   Widget _buildTabBar() {
-    final tabs = ['Schedule', 'Tasks', if (widget.isAdmin) 'Manage'];
-    return Container(
-      color: AppColors.background,
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-      child: Row(
-        children:
-            tabs.asMap().entries.map((e) {
-              final idx = e.key;
-              final label = e.value;
-              final isSelected = idx == _tabIndex;
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() => _tabIndex = idx),
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 6),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                      color: isSelected ? AppColors.primary : AppColors.surface,
-                      borderRadius: BorderRadius.circular(22),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        color: isSelected ? Colors.white : Colors.white38,
-                        fontSize: 13,
-                        fontWeight:
-                            isSelected ? FontWeight.bold : FontWeight.normal,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-      ),
-    );
-  }
-
-  // ── Schedule Tab ─────────────────────────────────────────────────────────
-
-  Widget _buildScheduleTab() {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
-      children: [
-        // Day selector
-        SizedBox(
-          height: 44,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children:
-                _days.map((day) {
-                  final isSelected = day == _activeDay;
-                  return GestureDetector(
-                    onTap: () => setState(() => _activeDay = day),
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 6),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color:
-                            isSelected ? AppColors.primary : AppColors.surface,
-                        borderRadius: BorderRadius.circular(22),
-                      ),
-                      child: Text(
-                        day,
-                        style: TextStyle(
-                          color: isSelected ? Colors.white : Colors.white38,
-                          fontSize: 12,
-                          fontWeight:
-                              isSelected ? FontWeight.bold : FontWeight.normal,
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
+    final mineCount = _controller.bookingsForActiveShop.length;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+      child: SegmentedButton<_ScheduleTab>(
+        segments: [
+          const ButtonSegment(
+            value: _ScheduleTab.browse,
+            label: Text('Open shifts'),
+            icon: Icon(Icons.event_available_outlined),
           ),
-        ),
-        const SizedBox(height: 12),
-
-        // Day full name
-        Text(
-          _dayFull[_activeDay] ?? _activeDay,
-          style: TextStyle(
-            color: AppColors.primary,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // Shift entries
-        ...(_schedule[_activeDay] ?? []).asMap().entries.map((e) {
-          final idx = e.key;
-          final entry = e.value;
-          final shift = _shifts.firstWhere(
-            (s) => s.id == entry.shiftId,
-            orElse: () => _shifts.first,
-          );
-          return _ShiftCard(
-            entry: entry,
-            shift: shift,
-            staff: _staff,
-            isAdmin: widget.isAdmin,
-            onDelete:
-                () => setState(() {
-                  _schedule[_activeDay]!.removeAt(idx);
-                }),
-            onAssign:
-                (staffIds) => setState(() {
-                  entry.staffIds
-                    ..clear()
-                    ..addAll(staffIds);
-                }),
-          );
-        }),
-
-        if ((_schedule[_activeDay] ?? []).isEmpty)
-          const _EmptyState(
-            title: 'No shifts assigned',
-            subtitle: 'Tap "+ Add Shift" below to assign one.',
-          ),
-
-        if (widget.isAdmin) ...[
-          const SizedBox(height: 12),
-          ElevatedButton.icon(
-            onPressed: () => _showAddShiftToDay(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              minimumSize: const Size.fromHeight(48),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            icon: const Icon(Icons.add),
-            label: Text('Add Shift to ${_dayFull[_activeDay]}'),
+          ButtonSegment(
+            value: _ScheduleTab.mine,
+            label: Text(mineCount > 0 ? 'My shifts ($mineCount)' : 'My shifts'),
+            icon: const Icon(Icons.assignment_ind_outlined),
           ),
         ],
-      ],
-    );
-  }
-
-  // ── Tasks Tab ────────────────────────────────────────────────────────────
-
-  Widget _buildTasksTab() {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
-      children: [
-        if (_tasks.isEmpty)
-          const _EmptyState(
-            title: 'No tasks yet',
-            subtitle: 'Admin can add tasks from this tab.',
-          )
-        else
-          ..._tasks.map(
-            (task) => _TaskCard(
-              task: task,
-              staff: _staff,
-              isAdmin: widget.isAdmin,
-              onDelete:
-                  () => setState(
-                    () => _tasks.removeWhere((t) => t.id == task.id),
-                  ),
-              onAssign:
-                  (staffIds) => setState(() {
-                    task.assignedStaff
-                      ..clear()
-                      ..addAll(staffIds);
-                  }),
-            ),
-          ),
-
-        if (widget.isAdmin) ...[
-          const SizedBox(height: 12),
-          ElevatedButton.icon(
-            onPressed: () => _showAddTask(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              minimumSize: const Size.fromHeight(48),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            icon: const Icon(Icons.add),
-            label: const Text('Add New Task'),
-          ),
-        ],
-      ],
-    );
-  }
-
-  // ── Manage Tab ───────────────────────────────────────────────────────────
-
-  Widget _buildManageTab() {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
-      children: [
-        const _SectionLabel(text: 'SHIFT TYPES'),
-        const SizedBox(height: 8),
-
-        if (_shifts.isEmpty)
-          const Text(
-            'No shift types yet.',
-            style: TextStyle(color: Colors.white38),
-          ),
-
-        ..._shifts.map(
-          (shift) => _ShiftDefRow(
-            shift: shift,
-            onDelete:
-                () => setState(
-                  () => _shifts.removeWhere((s) => s.id == shift.id),
-                ),
-          ),
-        ),
-
-        const SizedBox(height: 8),
-        ElevatedButton.icon(
-          onPressed: () => _showAddShiftDef(context),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-            minimumSize: const Size.fromHeight(48),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          icon: const Icon(Icons.add),
-          label: const Text('Add Shift Type'),
-        ),
-
-        const SizedBox(height: 24),
-        const _SectionLabel(text: 'STAFF MEMBERS'),
-        const SizedBox(height: 8),
-
-        if (_staff.isEmpty)
-          const Text(
-            'No staff members yet.',
-            style: TextStyle(color: Colors.white38),
-          ),
-
-        ..._staff.map(
-          (member) => _StaffRow(
-            member: member,
-            onDelete:
-                () => setState(
-                  () => _staff.removeWhere((s) => s.id == member.id),
-                ),
-          ),
-        ),
-
-        const SizedBox(height: 8),
-        ElevatedButton.icon(
-          onPressed: () => _showAddStaff(context),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-            minimumSize: const Size.fromHeight(48),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          icon: const Icon(Icons.add),
-          label: const Text('Add Staff Member'),
-        ),
-
-        const SizedBox(height: 24),
-        const _SectionLabel(text: 'DANGER ZONE'),
-        const SizedBox(height: 8),
-        ElevatedButton.icon(
-          onPressed: () => _confirmClearWeek(context),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.red,
-            foregroundColor: Colors.white,
-            minimumSize: const Size.fromHeight(48),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          icon: const Icon(Icons.delete_sweep),
-          label: const Text("Clear This Week's Schedule"),
-        ),
-      ],
-    );
-  }
-
-  // ── Popups ───────────────────────────────────────────────────────────────
-
-  void _showAddShiftDef(BuildContext context) {
-    final nameCtrl = TextEditingController();
-    final startCtrl = TextEditingController(text: '07:00');
-    final endCtrl = TextEditingController(text: '13:00');
-    final colorCtrl = TextEditingController(text: '#C9A84C');
-
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        selected: {_tab},
+        onSelectionChanged: (selection) {
+          setState(() => _tab = selection.first);
+        },
       ),
-      builder:
-          (ctx) => Padding(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              16,
-              16,
-              MediaQuery.of(ctx).viewInsets.bottom + 16,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Add Shift Type',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _InputField(
-                  controller: nameCtrl,
-                  hint: 'e.g. Morning Shift',
-                  label: 'Name',
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _InputField(
-                        controller: startCtrl,
-                        hint: '07:00',
-                        label: 'Start',
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _InputField(
-                        controller: endCtrl,
-                        hint: '13:00',
-                        label: 'End',
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                _InputField(
-                  controller: colorCtrl,
-                  hint: '#C9A84C',
-                  label: 'Color (hex)',
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          if (nameCtrl.text.trim().isEmpty) return;
-                          final hex = colorCtrl.text.trim();
-                          setState(() {
-                            _shifts.add(
-                              ShiftDef(
-                                id:
-                                    'shift_${DateTime.now().millisecondsSinceEpoch}',
-                                name: nameCtrl.text.trim(),
-                                startTime: startCtrl.text.trim(),
-                                endTime: endCtrl.text.trim(),
-                                color: _parseColor(hex),
-                              ),
-                            );
-                          });
-                          Navigator.pop(ctx);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: const Text('Save'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white38,
-                        ),
-                        child: const Text('Cancel'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
     );
-  }
-
-  void _showAddStaff(BuildContext context) {
-    final nameCtrl = TextEditingController();
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder:
-          (ctx) => Padding(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              16,
-              16,
-              MediaQuery.of(ctx).viewInsets.bottom + 16,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Add Staff Member',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _InputField(
-                  controller: nameCtrl,
-                  hint: 'e.g. Ko Aung',
-                  label: 'Name',
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          if (nameCtrl.text.trim().isEmpty) return;
-                          setState(() {
-                            _staff.add(
-                              StaffMember(
-                                id:
-                                    'staff_${DateTime.now().millisecondsSinceEpoch}',
-                                name: nameCtrl.text.trim(),
-                              ),
-                            );
-                          });
-                          Navigator.pop(ctx);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: const Text('Save'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white38,
-                        ),
-                        child: const Text('Cancel'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-    );
-  }
-
-  void _showAddShiftToDay(BuildContext context) {
-    if (_shifts.isEmpty) {
-      _showMsg(
-        context,
-        'No shift types yet.\nGo to Manage tab to add shifts first.',
-      );
-      return;
-    }
-    String selectedId = _shifts.first.id;
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder:
-          (ctx) => StatefulBuilder(
-            builder:
-                (ctx, setLocal) => Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    16,
-                    16,
-                    16,
-                    MediaQuery.of(ctx).viewInsets.bottom + 16,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Add Shift to ${_dayFull[_activeDay]}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      ..._shifts.map((shift) {
-                        final isSel = shift.id == selectedId;
-                        return GestureDetector(
-                          onTap: () => setLocal(() => selectedId = shift.id),
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color:
-                                  isSel ? shift.color : AppColors.surfaceHigh,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              '${shift.name}  (${shift.startTime}–${shift.endTime})',
-                              style: TextStyle(
-                                color: isSel ? Colors.white : Colors.white60,
-                                fontWeight:
-                                    isSel ? FontWeight.bold : FontWeight.normal,
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () {
-                                setState(() {
-                                  _schedule[_activeDay]!.add(
-                                    ShiftEntry(shiftId: selectedId),
-                                  );
-                                });
-                                Navigator.pop(ctx);
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                foregroundColor: Colors.white,
-                              ),
-                              child: const Text('Add'),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => Navigator.pop(ctx),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.white38,
-                              ),
-                              child: const Text('Cancel'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-          ),
-    );
-  }
-
-  void _showAddTask(BuildContext context) {
-    final nameCtrl = TextEditingController();
-    final selectedDays = <String>[];
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder:
-          (ctx) => StatefulBuilder(
-            builder:
-                (ctx, setLocal) => Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    16,
-                    16,
-                    16,
-                    MediaQuery.of(ctx).viewInsets.bottom + 16,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Add Task',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      _InputField(
-                        controller: nameCtrl,
-                        hint: 'e.g. Clean equipment',
-                        label: 'Task Name',
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Days (leave blank = every day)',
-                        style: TextStyle(color: Colors.white54, fontSize: 12),
-                      ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 6,
-                        children:
-                            _days.map((d) {
-                              final isSel = selectedDays.contains(d);
-                              return GestureDetector(
-                                onTap:
-                                    () => setLocal(() {
-                                      if (isSel) {
-                                        selectedDays.remove(d);
-                                      } else {
-                                        selectedDays.add(d);
-                                      }
-                                    }),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color:
-                                        isSel
-                                            ? AppColors.primary
-                                            : AppColors.surfaceHigh,
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Text(
-                                    d,
-                                    style: TextStyle(
-                                      color:
-                                          isSel ? Colors.white : Colors.white38,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () {
-                                if (nameCtrl.text.trim().isEmpty) return;
-                                setState(() {
-                                  _tasks.add(
-                                    TaskItem(
-                                      id:
-                                          'task_${DateTime.now().millisecondsSinceEpoch}',
-                                      name: nameCtrl.text.trim(),
-                                      days: List.from(selectedDays),
-                                    ),
-                                  );
-                                });
-                                Navigator.pop(ctx);
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                foregroundColor: Colors.white,
-                              ),
-                              child: const Text('Save'),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => Navigator.pop(ctx),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.white38,
-                              ),
-                              child: const Text('Cancel'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-          ),
-    );
-  }
-
-  void _confirmClearWeek(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder:
-          (ctx) => AlertDialog(
-            backgroundColor: AppColors.surface,
-            title: const Text(
-              'Clear Week',
-              style: TextStyle(color: Colors.white),
-            ),
-            content: const Text(
-              'Clear all shifts for this week?\nThis cannot be undone.',
-              style: TextStyle(color: Colors.white60),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text(
-                  'Cancel',
-                  style: TextStyle(color: Colors.white38),
-                ),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    for (final d in _days) {
-                      _schedule[d]!.clear();
-                    }
-                  });
-                  Navigator.pop(ctx);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Clear'),
-              ),
-            ],
-          ),
-    );
-  }
-
-  void _showMsg(BuildContext context, String msg) {
-    showDialog<void>(
-      context: context,
-      builder:
-          (ctx) => AlertDialog(
-            backgroundColor: AppColors.surface,
-            content: Text(msg, style: const TextStyle(color: Colors.white70)),
-            actions: [
-              ElevatedButton(
-                onPressed: () => Navigator.pop(ctx),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-    );
-  }
-
-  Color _parseColor(String hex) {
-    try {
-      final h = hex.replaceAll('#', '');
-      return Color(int.parse('FF$h', radix: 16));
-    } catch (_) {
-      return AppColors.gold;
-    }
   }
 }
 
-// ── Shift Card ────────────────────────────────────────────────────────────────
+// ── Browse open shifts ────────────────────────────────────────────────────────
 
-class _ShiftCard extends StatelessWidget {
-  const _ShiftCard({
-    required this.entry,
-    required this.shift,
-    required this.staff,
-    required this.isAdmin,
-    required this.onDelete,
-    required this.onAssign,
-  });
+class _BrowseView extends StatelessWidget {
+  const _BrowseView({required this.controller});
 
-  final ShiftEntry entry;
-  final ShiftDef shift;
-  final List<StaffMember> staff;
-  final bool isAdmin;
-  final VoidCallback onDelete;
-  final void Function(List<String>) onAssign;
+  final BookingController controller;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        children: [
-          // Accent bar
-          Container(
-            height: 4,
-            decoration: BoxDecoration(
-              color: shift.color,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(14),
-              ),
-            ),
-          ),
+    return Column(
+      children: [
+        _FilterBar(controller: controller),
+        Expanded(child: _buildBody(context)),
+      ],
+    );
+  }
 
-          // Header
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 10, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    shift.name,
-                    style: TextStyle(
-                      color: shift.color,
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                Text(
-                  '${shift.startTime} – ${shift.endTime}',
-                  style: const TextStyle(color: Colors.white38, fontSize: 12),
-                ),
-                if (isAdmin) ...[
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: onDelete,
-                    child: Container(
-                      width: 30,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceHigh,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.delete_outline,
-                        color: Colors.red,
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+  Widget _buildBody(BuildContext context) {
+    switch (controller.slotsStatus) {
+      case BookingLoadStatus.idle:
+        return const _ScheduleMessage(
+          icon: Icons.store_mall_directory_outlined,
+          title: 'No shop selected',
+          message: 'Select a shop to see its open shifts.',
+        );
+      case BookingLoadStatus.loading:
+        return Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        );
+      case BookingLoadStatus.error:
+        return _ScheduleMessage(
+          icon: Icons.error_outline,
+          title: 'Could not load shifts',
+          message: controller.slotsError ?? 'Something went wrong.',
+          onRetry: controller.refreshSlots,
+        );
+      case BookingLoadStatus.ready:
+        break;
+    }
 
-          const Divider(height: 1, color: AppColors.surfaceHigh),
+    final slots = controller.slots;
+    if (slots.isEmpty) {
+      return RefreshIndicator(
+        color: AppColors.primary,
+        backgroundColor: AppColors.surface,
+        onRefresh: controller.refreshSlots,
+        child: const _ScheduleMessage(
+          icon: Icons.event_busy_outlined,
+          title: 'No open shifts',
+          message: 'There are no open shifts matching your filters right now.',
+          scrollable: true,
+        ),
+      );
+    }
 
-          // Staff list
-          if (entry.staffIds.isEmpty)
-            const Padding(
-              padding: EdgeInsets.fromLTRB(14, 8, 14, 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'No staff assigned',
-                  style: TextStyle(color: Colors.white38, fontSize: 12),
-                ),
-              ),
-            )
-          else
-            ...entry.staffIds.map((sid) {
-              final member = staff.firstWhere(
-                (s) => s.id == sid,
-                orElse: () => StaffMember(id: sid, name: sid),
-              );
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceHigh,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.person_outline,
-                        color: Colors.white54,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        member.name,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-
-          if (isAdmin)
-            TextButton.icon(
-              onPressed:
-                  () => _showAssignStaff(context, entry, staff, onAssign),
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('Assign Staff'),
-              style: TextButton.styleFrom(foregroundColor: AppColors.primary),
-            ),
-
-          const SizedBox(height: 4),
-        ],
+    return RefreshIndicator(
+      color: AppColors.primary,
+      backgroundColor: AppColors.surface,
+      onRefresh: controller.refreshSlots,
+      child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 100),
+        itemCount: slots.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
+        itemBuilder: (context, index) {
+          final slot = slots[index];
+          return _OpenSlotCard(
+            slot: slot,
+            onTap: () => _openDetail(context, slot),
+          );
+        },
       ),
     );
   }
 
-  void _showAssignStaff(
-    BuildContext context,
-    ShiftEntry entry,
-    List<StaffMember> staff,
-    void Function(List<String>) onAssign,
-  ) {
-    if (staff.isEmpty) {
-      showDialog<void>(
-        context: context,
-        builder:
-            (ctx) => AlertDialog(
-              backgroundColor: AppColors.surface,
-              content: const Text(
-                'No staff yet.\nGo to Manage tab first.',
-                style: TextStyle(color: Colors.white70),
-              ),
-              actions: [
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
+  Future<void> _openDetail(BuildContext context, OpenSlot slot) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => BookingDetailScreen(controller: controller, slot: slot),
+      ),
+    );
+  }
+}
+
+class _FilterBar extends StatelessWidget {
+  const _FilterBar({required this.controller});
+
+  final BookingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final positions = controller.availablePositions;
+    final selectedDate = controller.dateFilter;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _pickDate(context),
+                  icon: const Icon(Icons.calendar_today, size: 16),
+                  label: Text(
+                    selectedDate == null
+                        ? 'All upcoming dates'
+                        : formatSlotDate(selectedDate),
+                  ),
+                  style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
+                    side: const BorderSide(color: AppColors.surfaceHigh),
+                    alignment: Alignment.centerLeft,
                   ),
-                  child: const Text('OK'),
-                ),
-              ],
-            ),
-      );
-      return;
-    }
-
-    final selected = List<String>.from(entry.staffIds);
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder:
-          (ctx) => StatefulBuilder(
-            builder:
-                (ctx, setLocal) => Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Assign Staff',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      ...staff.map((member) {
-                        final isSel = selected.contains(member.id);
-                        return GestureDetector(
-                          onTap:
-                              () => setLocal(() {
-                                if (isSel) {
-                                  selected.remove(member.id);
-                                } else {
-                                  selected.add(member.id);
-                                }
-                              }),
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color:
-                                  isSel
-                                      ? AppColors.primary
-                                      : AppColors.surfaceHigh,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  isSel
-                                      ? Icons.check_box
-                                      : Icons.check_box_outline_blank,
-                                  color: isSel ? Colors.white : Colors.white38,
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  member.name,
-                                  style: TextStyle(
-                                    color:
-                                        isSel ? Colors.white : Colors.white60,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () {
-                                onAssign(selected);
-                                Navigator.pop(ctx);
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                foregroundColor: Colors.white,
-                              ),
-                              child: const Text('Save'),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => Navigator.pop(ctx),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.white38,
-                              ),
-                              child: const Text('Cancel'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-          ),
-    );
-  }
-}
-
-// ── Task Card ─────────────────────────────────────────────────────────────────
-
-class _TaskCard extends StatelessWidget {
-  const _TaskCard({
-    required this.task,
-    required this.staff,
-    required this.isAdmin,
-    required this.onDelete,
-    required this.onAssign,
-  });
-
-  final TaskItem task;
-  final List<StaffMember> staff;
-  final bool isAdmin;
-  final VoidCallback onDelete;
-  final void Function(List<String>) onAssign;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border(
-          top: BorderSide(color: AppColors.primary, width: 3),
-        ),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 10, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    task.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                Text(
-                  task.days.isEmpty ? 'Every day' : task.days.join('  '),
-                  style: TextStyle(
-                    color: AppColors.primary,
-                    fontSize: 11,
-                  ),
-                ),
-                if (isAdmin) ...[
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: onDelete,
-                    child: Container(
-                      width: 30,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceHigh,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.delete_outline,
-                        color: Colors.red,
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: AppColors.surfaceHigh),
-          if (task.assignedStaff.isEmpty)
-            const Padding(
-              padding: EdgeInsets.fromLTRB(14, 8, 14, 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'No staff assigned',
-                  style: TextStyle(color: Colors.white38, fontSize: 12),
                 ),
               ),
-            )
-          else
-            ...task.assignedStaff.map((sid) {
-              final member = staff.firstWhere(
-                (s) => s.id == sid,
-                orElse: () => StaffMember(id: sid, name: sid),
-              );
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceHigh,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.person_outline,
-                        color: Colors.white54,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        member.name,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
+              if (selectedDate != null)
+                IconButton(
+                  tooltip: 'Clear date',
+                  icon: const Icon(Icons.close, color: Colors.white54),
+                  onPressed: () => controller.setDateFilter(null),
                 ),
-              );
-            }),
-          if (isAdmin)
-            TextButton.icon(
-              onPressed:
-                  () => _showAssignStaffTask(context, task, staff, onAssign),
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('Assign Staff'),
-              style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+            ],
+          ),
+          if (positions.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 36,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  _RoleChip(
+                    label: 'All roles',
+                    selected: controller.positionFilter == null,
+                    onTap: () => controller.setPositionFilter(null),
+                  ),
+                  for (final position in positions)
+                    _RoleChip(
+                      label: position.name,
+                      selected: controller.positionFilter == position.id,
+                      onTap: () => controller.setPositionFilter(position.id),
+                    ),
+                ],
+              ),
             ),
-          const SizedBox(height: 4),
+          ],
         ],
       ),
     );
   }
 
-  void _showAssignStaffTask(
-    BuildContext context,
-    TaskItem task,
-    List<StaffMember> staff,
-    void Function(List<String>) onAssign,
-  ) {
-    final selected = List<String>.from(task.assignedStaff);
-    showModalBottomSheet<void>(
+  Future<void> _pickDate(BuildContext context) async {
+    // Bounds are the shop's calendar (Asia/Bangkok, +07:00), not the device's,
+    // so a device in another timezone can't offer/seed the wrong shop day around
+    // midnight Bangkok. The picked value is a plain calendar day.
+    final bangkokNow = DateTime.now().toUtc().add(const Duration(hours: 7));
+    final today = DateTime(bangkokNow.year, bangkokNow.month, bangkokNow.day);
+    final existing = controller.dateFilter;
+    final initial =
+        existing == null || existing.isBefore(today) ? today : existing;
+    final picked = await showDatePicker(
       context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      initialDate: initial,
+      firstDate: today,
+      lastDate: today.add(const Duration(days: 90)),
+    );
+    if (picked != null) {
+      await controller.setDateFilter(picked);
+    }
+  }
+}
+
+class _RoleChip extends StatelessWidget {
+  const _RoleChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) => onTap(),
+        backgroundColor: AppColors.surface,
+        selectedColor: AppColors.primary,
+        labelStyle: TextStyle(
+          color: selected ? Colors.white : Colors.white70,
+          fontSize: 12,
+        ),
+        side: const BorderSide(color: AppColors.surfaceHigh),
       ),
-      builder:
-          (ctx) => StatefulBuilder(
-            builder:
-                (ctx, setLocal) => Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+    );
+  }
+}
+
+class _OpenSlotCard extends StatelessWidget {
+  const _OpenSlotCard({required this.slot, required this.onTap});
+
+  final OpenSlot slot;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: slot.isBookable ? 1.0 : 0.6,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Expanded(
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Assign to: ${task.name}',
+                        slot.positionName,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      ...staff.map((member) {
-                        final isSel = selected.contains(member.id);
-                        return GestureDetector(
-                          onTap:
-                              () => setLocal(() {
-                                if (isSel) {
-                                  selected.remove(member.id);
-                                } else {
-                                  selected.add(member.id);
-                                }
-                              }),
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color:
-                                  isSel
-                                      ? AppColors.primary
-                                      : AppColors.surfaceHigh,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  isSel
-                                      ? Icons.check_box
-                                      : Icons.check_box_outline_blank,
-                                  color: isSel ? Colors.white : Colors.white38,
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  member.name,
-                                  style: TextStyle(
-                                    color:
-                                        isSel ? Colors.white : Colors.white60,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () {
-                                onAssign(selected);
-                                Navigator.pop(ctx);
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                foregroundColor: Colors.white,
-                              ),
-                              child: const Text('Save'),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => Navigator.pop(ctx),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.white38,
-                              ),
-                              child: const Text('Cancel'),
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 4),
+                      Text(
+                        formatSlotDateString(slot.slotDate),
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                        ),
+                      ),
+                      Text(
+                        '${slot.startHm} – ${slot.endHm}',
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        slot.isFull
+                            ? 'No seats left'
+                            : '${slot.remaining} of ${slot.capacity} seats open',
+                        style: TextStyle(
+                          color:
+                              slot.isFull ? Colors.white38 : AppColors.silver,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 10),
+                _SlotStatusPill(slot: slot),
+              ],
+            ),
           ),
+        ),
+      ),
     );
   }
 }
 
-// ── Shift Def Row ─────────────────────────────────────────────────────────────
+class _SlotStatusPill extends StatelessWidget {
+  const _SlotStatusPill({required this.slot});
 
-class _ShiftDefRow extends StatelessWidget {
-  const _ShiftDefRow({required this.shift, required this.onDelete});
+  final OpenSlot slot;
 
-  final ShiftDef shift;
-  final VoidCallback onDelete;
+  @override
+  Widget build(BuildContext context) {
+    final (String label, Color color) = switch (slot) {
+      _ when slot.isFull => ('Full', AppColors.silver),
+      _ when slot.tooSoon => ('Opens 1 wk ahead', AppColors.amber),
+      _ => ('Open', AppColors.success),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
+// ── My bookings ───────────────────────────────────────────────────────────────
+
+class _MyBookingsView extends StatelessWidget {
+  const _MyBookingsView({required this.controller});
+
+  final BookingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    switch (controller.bookingsStatus) {
+      case BookingLoadStatus.idle:
+      case BookingLoadStatus.loading:
+        return Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        );
+      case BookingLoadStatus.error:
+        return _ScheduleMessage(
+          icon: Icons.error_outline,
+          title: 'Could not load your shifts',
+          message: controller.bookingsError ?? 'Something went wrong.',
+          onRetry: controller.loadMyBookings,
+        );
+      case BookingLoadStatus.ready:
+        break;
+    }
+
+    // Active-shop-scoped: a multi-shop staff member only sees and cancels the
+    // bookings for the shop they are currently working in.
+    final bookings = controller.bookingsForActiveShop;
+    if (bookings.isEmpty) {
+      return RefreshIndicator(
+        color: AppColors.primary,
+        backgroundColor: AppColors.surface,
+        onRefresh: controller.loadMyBookings,
+        child: const _ScheduleMessage(
+          icon: Icons.event_note_outlined,
+          title: 'No upcoming shifts',
+          message: 'Book an open shift and it will show up here.',
+          scrollable: true,
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      color: AppColors.primary,
+      backgroundColor: AppColors.surface,
+      onRefresh: controller.loadMyBookings,
+      child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 100),
+        itemCount: bookings.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
+        itemBuilder: (context, index) {
+          return _MyBookingCard(
+            booking: bookings[index],
+            onCancel: () => _confirmCancel(context, bookings[index]),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _confirmCancel(BuildContext context, MyBooking booking) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => _CancelSheet(booking: booking),
+    );
+    if (confirmed != true) return;
+
+    final error = await controller.cancel(
+      booking.bookingId,
+      shopId: booking.shopId,
+    );
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(error ?? 'Shift cancelled.'),
+        backgroundColor: error == null ? AppColors.success : AppColors.primary,
+      ),
+    );
+  }
+}
+
+class _MyBookingCard extends StatelessWidget {
+  const _MyBookingCard({required this.booking, required this.onCancel});
+
+  final MyBooking booking;
+  final VoidCallback onCancel;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              color: shift.color,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              shift.name,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          Text(
-            '${shift.startTime} – ${shift.endTime}',
-            style: const TextStyle(color: Colors.white38, fontSize: 12),
-          ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: onDelete,
-            child: Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceHigh,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.delete_outline,
-                color: Colors.red,
-                size: 16,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Staff Row ─────────────────────────────────────────────────────────────────
-
-class _StaffRow extends StatelessWidget {
-  const _StaffRow({required this.member, required this.onDelete});
-
-  final StaffMember member;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              member.name,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-            ),
-          ),
-          GestureDetector(
-            onTap: onDelete,
-            child: Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceHigh,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.delete_outline,
-                color: Colors.red,
-                size: 16,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Empty State ───────────────────────────────────────────────────────────────
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.title, required this.subtitle});
-
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 32),
+      padding: const EdgeInsets.all(14),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.calendar_today_outlined,
-            size: 48,
-            color: Colors.white24,
-          ),
-          const SizedBox(height: 12),
           Text(
-            title,
+            booking.positionName,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 16,
+              fontSize: 15,
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 2),
           Text(
-            subtitle,
-            style: const TextStyle(color: Colors.white38, fontSize: 13),
-            textAlign: TextAlign.center,
+            booking.shopName,
+            style: const TextStyle(color: Colors.white54, fontSize: 12),
           ),
+          const SizedBox(height: 6),
+          Text(
+            formatSlotDateString(booking.slotDate),
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+          Text(
+            '${booking.startHm} – ${booking.endHm}',
+            style: const TextStyle(color: Colors.white54, fontSize: 12),
+          ),
+          const SizedBox(height: 10),
+          if (booking.canCancel)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: onCancel,
+                icon: const Icon(Icons.cancel_outlined, size: 18),
+                label: const Text('Cancel shift'),
+                style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+              ),
+            )
+          else
+            const Row(
+              children: [
+                Icon(Icons.lock_clock, size: 14, color: Colors.white38),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Cancellation closed — within 48h of start. Contact your manager.',
+                    style: TextStyle(color: Colors.white38, fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );
   }
 }
 
-// ── Section Label ─────────────────────────────────────────────────────────────
+class _CancelSheet extends StatelessWidget {
+  const _CancelSheet({required this.booking});
 
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({required this.text});
-
-  final String text;
+  final MyBooking booking;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: TextStyle(
-        color: AppColors.primary,
-        fontSize: 11,
-        fontWeight: FontWeight.bold,
-        letterSpacing: 1.2,
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Cancel this shift?',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${booking.positionName} · ${formatSlotDateString(booking.slotDate)}\n'
+              '${booking.startHm} – ${booking.endHm} at ${booking.shopName}',
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Your seat reopens for someone else. You can only cancel up to 48 hours before the shift starts.',
+              style: TextStyle(color: Colors.white38, fontSize: 12),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: AppColors.surfaceHigh),
+                    ),
+                    child: const Text('Keep shift'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Cancel shift'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-// ── Input Field ───────────────────────────────────────────────────────────────
+// ── Shared message view ───────────────────────────────────────────────────────
 
-class _InputField extends StatelessWidget {
-  const _InputField({
-    required this.controller,
-    required this.hint,
-    required this.label,
+class _ScheduleMessage extends StatelessWidget {
+  const _ScheduleMessage({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.onRetry,
+    this.scrollable = false,
   });
 
-  final TextEditingController controller;
-  final String hint;
-  final String label;
+  final IconData icon;
+  final String title;
+  final String message;
+  final Future<void> Function()? onRetry;
+  final bool scrollable;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(color: Colors.white54, fontSize: 12),
-        ),
-        const SizedBox(height: 4),
-        TextField(
-          controller: controller,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: const TextStyle(color: Colors.white24),
-            filled: true,
-            fillColor: AppColors.surfaceHigh,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide.none,
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 12,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final content = Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 48, color: Colors.white24),
+                const SizedBox(height: 12),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  message,
+                  style: const TextStyle(color: Colors.white38, fontSize: 13),
+                  textAlign: TextAlign.center,
+                ),
+                if (onRetry != null) ...[
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: onRetry,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              ],
             ),
           ),
-        ),
-      ],
+        );
+        return SingleChildScrollView(
+          physics:
+              scrollable
+                  ? const AlwaysScrollableScrollPhysics()
+                  : const NeverScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: content,
+          ),
+        );
+      },
     );
   }
 }

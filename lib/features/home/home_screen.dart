@@ -4,6 +4,9 @@ import 'package:provider/provider.dart';
 import '../../core/attendance/attendance_controller.dart';
 import '../../core/attendance/attendance_repository.dart';
 import '../../core/attendance/location_service.dart';
+import '../../core/booking/booking_controller.dart';
+import '../../core/booking/booking_models.dart';
+import '../../core/booking/booking_repository.dart';
 import '../../core/firestore/favorites_repository.dart';
 import '../../core/models/category.dart';
 import '../../core/models/content_item.dart';
@@ -20,6 +23,7 @@ import '../../widgets/content_chips.dart';
 import '../attendance/attendance_history_screen.dart';
 import '../category/category_screen.dart';
 import '../item_detail/item_detail_screen.dart';
+import '../schedule/alerts_screen.dart';
 import '../schedule/schedule_screen.dart';
 import '../settings/settings_screen.dart';
 import 'attendance_card.dart';
@@ -50,6 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
   SopCatalogController? _catalog;
   RecipeCatalogController? _recipeCatalog;
   AttendanceController? _attendance;
+  BookingController? _booking;
   StaffSessionController? _session;
   Set<String> _favoriteIds = {};
   String? _favoriteScopeKey;
@@ -69,6 +74,8 @@ class _HomeScreenState extends State<HomeScreen> {
       context.read<AttendanceRepository>(),
       context.read<LocationProvider>(),
     )..addListener(_onCatalogChanged);
+    _booking ??= BookingController(context.read<BookingRepository>())
+      ..addListener(_onCatalogChanged);
 
     final session = context.read<StaffSessionController>();
     if (!identical(session, _session)) {
@@ -98,6 +105,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _catalog?.loadForShop(shop);
     _recipeCatalog?.loadForShop(shop);
     _attendance?.loadForShop(shop);
+    _booking?.loadForShop(shop);
   }
 
   void _syncFavorites() {
@@ -119,6 +127,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _recipeCatalog?.dispose();
     _attendance?.removeListener(_onCatalogChanged);
     _attendance?.dispose();
+    _booking?.removeListener(_onCatalogChanged);
+    _booking?.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -202,6 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
         ],
+        if (_navIndex == 2 && _booking != null) _buildAlertsBell(),
         Container(
           margin: const EdgeInsets.only(right: 8),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -255,7 +266,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSelectedPage() {
     final member = _effectiveMember;
     if (_navIndex == 2) {
-      return ScheduleScreen(isAdmin: member.isAdmin, embedded: true);
+      return ScheduleScreen(controller: _booking!);
     }
     if (_navIndex == 3) {
       return SettingsScreen(isAdmin: member.isAdmin, embedded: true);
@@ -266,6 +277,8 @@ class _HomeScreenState extends State<HomeScreen> {
           AttendanceCard(
             controller: _attendance!,
             onViewHistory: _openAttendanceHistory,
+            nextShift: _nextShift,
+            todayShiftStart: _todayShiftStart,
           ),
         _buildSegmentBar(),
         Expanded(child: _buildRefreshableBody()),
@@ -276,6 +289,68 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openAttendanceHistory() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const AttendanceHistoryScreen()),
+    );
+  }
+
+  // Bookings at the ACTIVE shop only — the attendance card is shop-scoped, so a
+  // next-shift / lateness note must not be computed from another shop's booking.
+  List<MyBooking> get _activeShopBookings {
+    final shopId = _session?.state.activeShop?.id;
+    if (shopId == null) return const <MyBooking>[];
+    return (_booking?.bookings ?? const <MyBooking>[])
+        .where((booking) => booking.shopId == shopId)
+        .toList(growable: false);
+  }
+
+  // Nearest upcoming booked shift at the active shop (bookings are sorted
+  // soonest-first), for the card's "next shift" tie-in. Null when none upcoming
+  // or the booking time fails to parse.
+  MyBooking? get _nextShift {
+    final nowUtc = DateTime.now().toUtc();
+    for (final booking in _activeShopBookings) {
+      final start = booking.startInstant;
+      if (start != null && start.isAfter(nowUtc)) return booking;
+    }
+    return null;
+  }
+
+  // Start (UTC instant) of the active-shop shift currently in progress — the one
+  // whose [start, end) window contains now — used to flag a late clock-in. Null
+  // when no shift is in progress.
+  DateTime? get _todayShiftStart {
+    final nowUtc = DateTime.now().toUtc();
+    for (final booking in _activeShopBookings) {
+      final start = booking.startInstant;
+      final end = booking.endInstant;
+      if (start != null &&
+          end != null &&
+          !start.isAfter(nowUtc) &&
+          end.isAfter(nowUtc)) {
+        return start;
+      }
+    }
+    return null;
+  }
+
+  // Schedule-change alerts bell with an unread badge (T066).
+  Widget _buildAlertsBell() {
+    final unread = _booking?.unreadAlertCount ?? 0;
+    return IconButton(
+      tooltip: 'Schedule alerts',
+      icon: Badge(
+        isLabelVisible: unread > 0,
+        label: Text('$unread'),
+        child: const Icon(Icons.notifications_outlined, color: Colors.white),
+      ),
+      onPressed: () {
+        final booking = _booking;
+        if (booking == null) return;
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => AlertsScreen(controller: booking),
+          ),
+        );
+      },
     );
   }
 
