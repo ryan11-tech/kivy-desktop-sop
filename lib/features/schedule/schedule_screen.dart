@@ -51,7 +51,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   }
 
   Widget _buildTabBar() {
-    final mineCount = _controller.bookings.length;
+    final mineCount = _controller.bookingsForActiveShop.length;
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
       child: SegmentedButton<_ScheduleTab>(
@@ -229,13 +229,19 @@ class _FilterBar extends StatelessWidget {
   }
 
   Future<void> _pickDate(BuildContext context) async {
-    final now = DateTime.now();
-    final initial = controller.dateFilter ?? now;
+    // Bounds are the shop's calendar (Asia/Bangkok, +07:00), not the device's,
+    // so a device in another timezone can't offer/seed the wrong shop day around
+    // midnight Bangkok. The picked value is a plain calendar day.
+    final bangkokNow = DateTime.now().toUtc().add(const Duration(hours: 7));
+    final today = DateTime(bangkokNow.year, bangkokNow.month, bangkokNow.day);
+    final existing = controller.dateFilter;
+    final initial =
+        existing == null || existing.isBefore(today) ? today : existing;
     final picked = await showDatePicker(
       context: context,
-      initialDate: initial.isBefore(now) ? now : initial,
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 90)),
+      initialDate: initial,
+      firstDate: today,
+      lastDate: today.add(const Duration(days: 90)),
     );
     if (picked != null) {
       await controller.setDateFilter(picked);
@@ -311,7 +317,7 @@ class _OpenSlotCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        formatSlotDate(DateTime.parse(slot.slotDate)),
+                        formatSlotDateString(slot.slotDate),
                         style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 13,
@@ -406,7 +412,9 @@ class _MyBookingsView extends StatelessWidget {
         break;
     }
 
-    final bookings = controller.bookings;
+    // Active-shop-scoped: a multi-shop staff member only sees and cancels the
+    // bookings for the shop they are currently working in.
+    final bookings = controller.bookingsForActiveShop;
     if (bookings.isEmpty) {
       return RefreshIndicator(
         color: AppColors.primary,
@@ -495,7 +503,7 @@ class _MyBookingCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            formatSlotDate(DateTime.parse(booking.slotDate)),
+            formatSlotDateString(booking.slotDate),
             style: const TextStyle(color: Colors.white70, fontSize: 13),
           ),
           Text(
@@ -556,7 +564,7 @@ class _CancelSheet extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              '${booking.positionName} · ${formatSlotDate(DateTime.parse(booking.slotDate))}\n'
+              '${booking.positionName} · ${formatSlotDateString(booking.slotDate)}\n'
               '${booking.startHm} – ${booking.endHm} at ${booking.shopName}',
               style: const TextStyle(color: Colors.white70, fontSize: 13),
             ),

@@ -73,6 +73,16 @@ class BookingController extends ChangeNotifier {
   BookingLoadStatus get bookingsStatus => _bookingsStatus;
   List<MyBooking> _bookings = const <MyBooking>[];
   List<MyBooking> get bookings => _bookings;
+
+  /// The caller's bookings at the currently loaded (active) shop only. The
+  /// schedule card is shop-scoped, so cross-shop bookings are neither shown nor
+  /// cancellable here. Empty until a shop is loaded.
+  List<MyBooking> get bookingsForActiveShop {
+    final shopId = _loadedShopId;
+    if (shopId == null) return const <MyBooking>[];
+    return _bookings.where((b) => b.shopId == shopId).toList(growable: false);
+  }
+
   String? _bookingsError;
   String? get bookingsError => _bookingsError;
   int _bookingsToken = 0;

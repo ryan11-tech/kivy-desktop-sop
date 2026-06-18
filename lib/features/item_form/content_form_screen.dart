@@ -718,8 +718,7 @@ class _ContentEditorDialogState extends State<_ContentEditorDialog> {
         // A dedicated variant editor lands later.
         variants:
             widget.kind == PortalContentKind.recipe
-                ? (widget.item?.variants ??
-                    const <PortalRecipeVariantInput>[])
+                ? (widget.item?.variants ?? const <PortalRecipeVariantInput>[])
                 : const <PortalRecipeVariantInput>[],
       );
       final api = context.read<StaffApiClient>();

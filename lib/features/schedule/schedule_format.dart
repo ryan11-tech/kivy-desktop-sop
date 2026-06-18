@@ -22,3 +22,11 @@ String formatSlotDate(DateTime date) {
   final month = _months[date.month - 1];
   return '$weekday, ${date.day} $month ${date.year}';
 }
+
+/// Formats a `YYYY-MM-DD` slot-date string defensively. A malformed or missing
+/// value (schema/API skew) renders as the raw string instead of throwing a
+/// FormatException that would take down the whole screen during build.
+String formatSlotDateString(String slotDate) {
+  final parsed = DateTime.tryParse(slotDate);
+  return parsed == null ? slotDate : formatSlotDate(parsed);
+}

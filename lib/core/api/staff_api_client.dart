@@ -638,11 +638,14 @@ Map<String, Object?> _attendancePayload(
   };
 }
 
+// Serializes a DateTime as its own calendar day (YYYY-MM-DD) without any
+// timezone conversion. Callers pass plain calendar days (date-picker selections,
+// attendance range bounds), so formatting the device-local frame would shift the
+// day for devices outside the shop timezone — format the fields directly.
 String _ymd(DateTime date) {
-  final local = date.toLocal();
-  final month = local.month.toString().padLeft(2, '0');
-  final day = local.day.toString().padLeft(2, '0');
-  return '${local.year.toString().padLeft(4, '0')}-$month-$day';
+  final month = date.month.toString().padLeft(2, '0');
+  final day = date.day.toString().padLeft(2, '0');
+  return '${date.year.toString().padLeft(4, '0')}-$month-$day';
 }
 
 int? _intFrom(Object? value) {

@@ -29,6 +29,21 @@ OpenSlot _slot({
   );
 }
 
+MyBooking _booking({required String id, required String shopId}) {
+  return MyBooking(
+    bookingId: id,
+    shiftSlotId: 'slot-$id',
+    shopId: shopId,
+    shopName: shopId,
+    positionName: 'Bar',
+    slotDate: '2026-06-30',
+    startTime: '09:00:00',
+    endTime: '12:00:00',
+    status: 'booked',
+    canCancel: true,
+  );
+}
+
 class _FakeBookingRepo implements BookingRepository {
   Completer<List<OpenSlot>>? pendingSlots;
   List<OpenSlot> slotsResult = const <OpenSlot>[];
@@ -167,6 +182,28 @@ void main() {
       'Cancellation closes 48 hours before the shift. Contact your manager.',
     );
   });
+
+  test(
+    'bookingsForActiveShop only returns the loaded shop\'s bookings',
+    () async {
+      final repo = _FakeBookingRepo();
+      final controller = BookingController(repo);
+      repo.bookingsResult = [
+        _booking(id: 'b-a', shopId: 'a'),
+        _booking(id: 'b-b', shopId: 'b'),
+      ];
+
+      // No shop loaded yet → empty (never leak another shop's bookings).
+      expect(controller.bookingsForActiveShop, isEmpty);
+
+      await controller.loadForShop(shopA);
+      expect(controller.bookings.length, 2); // raw caller-scoped list
+      expect(controller.bookingsForActiveShop.map((b) => b.bookingId), ['b-a']);
+
+      await controller.loadForShop(shopB);
+      expect(controller.bookingsForActiveShop.map((b) => b.bookingId), ['b-b']);
+    },
+  );
 
   test('role filter narrows slots client-side without refetching', () async {
     final repo = _FakeBookingRepo();
