@@ -177,11 +177,6 @@ void main() {
 
     expect(navigator.canPop(), isFalse);
 
-    await tester.tap(find.text('Schedule').last);
-    await tester.pumpAndSettle();
-    expect(find.text('Staff Schedule'), findsOneWidget);
-    expect(navigator.canPop(), isFalse);
-
     await tester.tap(find.text('Settings').last);
     await tester.pumpAndSettle();
     expect(find.text('ACCOUNT'), findsOneWidget);

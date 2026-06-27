@@ -103,6 +103,68 @@ lib/
 
 ---
 
+## 2a. Scheduling / booking architecture (historical — removal planned)
+
+> **Scheduling removed from mobile (planned — change-set 002).**
+> The layers described below exist in the current codebase but are slated for
+> deletion as part of recruitment scheduling redesign change-set 002. Shift
+> booking is being replaced by applicant session-template selection during the
+> careers registration flow (web only). The Flutter app will keep SOP content,
+> attendance (clock in/out), and all other tabs. Do NOT implement new work
+> against these layers.
+
+### What exists today (as-built)
+
+The Flutter app currently includes a full self-service shift-booking feature
+backed by seven `/api/staff/scheduling/*` endpoints:
+
+| StaffApiClient call | Endpoint |
+|---|---|
+| `listShiftSlots` | `GET /staff/scheduling/shift-slots` |
+| `getShiftSlot` | `GET /staff/scheduling/shift-slots/:id` |
+| `createBooking` | `POST /staff/scheduling/bookings` |
+| `listMyBookings` | `GET /staff/scheduling/bookings/my` |
+| `getMyBooking` | `GET /staff/scheduling/bookings/my/:id` |
+| `cancelBooking` | `DELETE /staff/scheduling/bookings/:id` |
+| `listScheduleAlerts` | `GET /staff/scheduling/alerts` |
+
+The client architecture for this feature spans:
+
+- `lib/features/schedule/` — Schedule tab screen, booking detail screens, and
+  the AlertsScreen (schedule-change notifications).
+- `lib/core/booking/` — `BookingRepository` (abstract + `RemoteBookingRepository`
+  implementation), `BookingController` (ChangeNotifier), and `booking_models.dart`
+  (`ShiftSlot`, `MyBooking`, `ScheduleAlert`).
+- `lib/features/home/home_screen.dart` — Schedule nav-tab wire-up, `BookingController`
+  instantiation, the alerts-bell `AppBar` action, and the `_nextShift` /
+  `_todayShiftStart` computed getters that feed the `AttendanceCard`.
+- `lib/features/home/attendance_card.dart` — `nextShift` parameter (displays
+  the staff member's nearest upcoming booked shift) and `_latenessNote` /
+  `_nextShiftRow` widgets (lateness relative to `todayShiftStart`).
+- `app.dart` — `BookingRepository` DI registration in the Provider tree.
+- `test/features/schedule/` — widget and unit tests for the schedule feature.
+
+### What will be removed (change-set 002)
+
+The following files and layers are slated for deletion:
+
+- `lib/features/schedule/` (entire directory — Schedule tab, booking screens,
+  AlertsScreen).
+- `lib/core/booking/` (entire directory — `BookingRepository`, `BookingController`,
+  `booking_models.dart`).
+- The 7 `/staff/scheduling/*` `StaffApiClient` call methods.
+- `BookingRepository` DI registration in `app.dart`.
+- `AttendanceCard` `nextShift` parameter, `_nextShiftRow()` widget, and
+  `_latenessNote()` widget (booking tie-ins only; clock-in/out core is kept).
+- Schedule-tab nav entry and `BookingController` lifecycle in `home_screen.dart`.
+- `test/features/schedule/` booking tests.
+
+The backend `/api/staff/scheduling/*` staff self-booking routes + handlers and the
+`schedule.book` permission are removed too (change-set 002); the portal operational
+scheduling endpoints remain server-side.
+
+---
+
 ## 3. Historical Firebase target, not current v1
 
 The remaining Firebase-oriented flow is retained as historical planning context
