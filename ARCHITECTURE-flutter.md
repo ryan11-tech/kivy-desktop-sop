@@ -103,30 +103,30 @@ lib/
 
 ---
 
-## 2a. Scheduling / booking architecture (historical — removal planned)
+## 2a. Scheduling / booking architecture (historical — removed in change-set 002)
 
-> **Scheduling removed from mobile (planned — change-set 002).**
-> The layers described below exist in the current codebase but are slated for
-> deletion as part of recruitment scheduling redesign change-set 002. Shift
-> booking is being replaced by applicant session-template selection during the
-> careers registration flow (web only). The Flutter app will keep SOP content,
-> attendance (clock in/out), and all other tabs. Do NOT implement new work
-> against these layers.
+> **Scheduling removed from mobile (change-set 002 — done).**
+> The layers described below used to exist in the codebase and were deleted in
+> recruitment scheduling redesign change-set 002. Shift booking was replaced by
+> applicant session-template selection during the careers registration flow (web
+> only). The Flutter app keeps SOP content, attendance (clock in/out), and all
+> other tabs. Do NOT implement new work against these layers; this section is
+> retained only as a record of what was removed.
 
-### What exists today (as-built)
+### What existed (pre-removal, as-built)
 
-The Flutter app currently includes a full self-service shift-booking feature
+The Flutter app previously included a full self-service shift-booking feature
 backed by seven `/api/staff/scheduling/*` endpoints:
 
 | StaffApiClient call | Endpoint |
 |---|---|
-| `listShiftSlots` | `GET /staff/scheduling/shift-slots` |
-| `getShiftSlot` | `GET /staff/scheduling/shift-slots/:id` |
+| `listOpenSlots` | `GET /staff/scheduling/shift-slots` |
+| `getSlot` | `GET /staff/scheduling/shift-slots/:id` |
 | `createBooking` | `POST /staff/scheduling/bookings` |
 | `listMyBookings` | `GET /staff/scheduling/bookings/my` |
-| `getMyBooking` | `GET /staff/scheduling/bookings/my/:id` |
 | `cancelBooking` | `DELETE /staff/scheduling/bookings/:id` |
 | `listScheduleAlerts` | `GET /staff/scheduling/alerts` |
+| `markAlertRead` | `POST /staff/scheduling/alerts/:id/read` |
 
 The client architecture for this feature spans:
 
@@ -134,7 +134,7 @@ The client architecture for this feature spans:
   the AlertsScreen (schedule-change notifications).
 - `lib/core/booking/` — `BookingRepository` (abstract + `RemoteBookingRepository`
   implementation), `BookingController` (ChangeNotifier), and `booking_models.dart`
-  (`ShiftSlot`, `MyBooking`, `ScheduleAlert`).
+  (`OpenSlot`, `MyBooking`, `ScheduleAlert`).
 - `lib/features/home/home_screen.dart` — Schedule nav-tab wire-up, `BookingController`
   instantiation, the alerts-bell `AppBar` action, and the `_nextShift` /
   `_todayShiftStart` computed getters that feed the `AttendanceCard`.
@@ -144,9 +144,9 @@ The client architecture for this feature spans:
 - `app.dart` — `BookingRepository` DI registration in the Provider tree.
 - `test/features/schedule/` — widget and unit tests for the schedule feature.
 
-### What will be removed (change-set 002)
+### What was removed (change-set 002)
 
-The following files and layers are slated for deletion:
+The following files and layers were deleted:
 
 - `lib/features/schedule/` (entire directory — Schedule tab, booking screens,
   AlertsScreen).
