@@ -126,6 +126,9 @@ void main() {
 
     expect(find.text('Enter PIN to continue'), findsNothing);
     expect(find.text('Food & Beverage SOP'), findsOneWidget);
+    // Regression guard: scheduling was removed from the app (feature 002), so no
+    // Schedule destination should ever reappear in the bottom navigation.
+    expect(find.text('Schedule'), findsNothing);
   });
 
   testWidgets('lock returns configured users to PIN', (tester) async {
@@ -175,11 +178,6 @@ void main() {
     await _pumpReadyApp(tester);
     final navigator = tester.state<NavigatorState>(find.byType(Navigator));
 
-    expect(navigator.canPop(), isFalse);
-
-    await tester.tap(find.text('Schedule').last);
-    await tester.pumpAndSettle();
-    expect(find.text('Staff Schedule'), findsOneWidget);
     expect(navigator.canPop(), isFalse);
 
     await tester.tap(find.text('Settings').last);

@@ -899,7 +899,18 @@ No shared staff PIN verification endpoint is needed in this version.
   - backend-managed media storage
 - HTTP API client: Dio with persisted backend cookies.
 - State management: Provider and ChangeNotifier.
-- Routing: Material routes plus a main shell for Home/Favorites/Schedule/Settings.
+- Routing: Material routes plus a main shell for Home/Favorites/Settings.
+
+  > **Scheduling removed from mobile (change-set 002 — done).** The Schedule
+  > tab and all booking-related screens (browse open shifts, book a shift, my
+  > shifts, cancel booking, schedule alerts) have been removed from the
+  > Flutter app. The `next-shift` widget on any home/attendance card was also
+  > removed. Shift-session selection moves to the web recruitment
+  > flow: applicants choose available shift sessions during registration Step 3
+  > (see `zin_mae` change-set 002). The mobile app's scope remains SOP browsing,
+  > recipe browsing, attendance (clock-in/clock-out), favorites, and settings.
+  > The backend `/staff/scheduling/*` staff self-booking endpoints are removed
+  > too (change-set 002); the portal operational scheduling endpoints remain.
 - Models: `freezed` + `json_serializable`, or hand-written serializers if the
   project wants less generated code.
 - Local device settings: `shared_preferences`.

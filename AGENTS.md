@@ -200,6 +200,21 @@ Rules:
 - UI must read `contentType`; never infer recipe vs SOP from populated fields.
 - Staff/admin visibility is a permission rule, not a widget condition only.
 
+## Scheduling removed from mobile (change-set 002 — done)
+
+The Schedule tab, booking screens, alerts screen, `BookingController`, booking
+repositories/models, the seven `/staff/scheduling/*` API calls, and the
+`AttendanceCard` "Next shift" / lateness widgets have been **removed** from
+the Flutter app as part of change-set 002 (recruitment scheduling redesign).
+
+What the app **keeps**: SOP catalog, attendance (clock-in / clock-out), recipes,
+favorites, settings, and all other existing tabs.
+
+The backend `/staff/scheduling/*` staff self-booking endpoints are removed too
+(change-set 002); the portal operational scheduling endpoints remain.  Do not add
+new Flutter code that targets those endpoints.  For implementation details see
+`zin_mae/docs/recruitment-changes-002-scheduling-sessions-spec-plan.md`.
+
 ## Product Source Of Truth
 
 - `PRD-flutter.md` defines product behavior.
