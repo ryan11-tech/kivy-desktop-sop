@@ -76,7 +76,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const Text(
-                      'Zinme Staff',
+                      'ZINMÉ Staff',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 28,
