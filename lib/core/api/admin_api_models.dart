@@ -169,14 +169,19 @@ class PortalStaffMutation {
 const suspendReasonMinLength = 5;
 const suspendReasonMaxLength = 500;
 
+/// Length of a suspend reason as the server counts it: the trimmed text in
+/// UTF-16 code units (Dart's `String.length`, same as zod's `.max()`), not
+/// user-perceived characters, so an emoji counts as 2.
+int suspendReasonLength(String reason) => reason.trim().length;
+
 /// Returns a user-facing error for a suspend reason, or null when it is valid.
 String? validateSuspendReason(String reason) {
-  final length = reason.trim().length;
+  final length = suspendReasonLength(reason);
   if (length < suspendReasonMinLength) {
     return 'Give a reason of at least $suspendReasonMinLength characters.';
   }
   if (length > suspendReasonMaxLength) {
-    return 'Keep the reason under $suspendReasonMaxLength characters.';
+    return 'Keep the reason to at most $suspendReasonMaxLength characters.';
   }
   return null;
 }

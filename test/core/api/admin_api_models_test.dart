@@ -78,6 +78,24 @@ void main() {
       expect(validateSuspendReason('a' * 500), isNull);
       expect(validateSuspendReason('a' * 501), isNotNull);
     });
+
+    test('allows exactly 500 and refuses 501 with the at-most message', () {
+      expect(validateSuspendReason('  ${'a' * 500}  '), isNull);
+      expect(
+        validateSuspendReason('a' * 501),
+        'Keep the reason to at most 500 characters.',
+      );
+    });
+
+    test('counts UTF-16 code units like the server, not graphemes', () {
+      const emoji = '\u{1F600}'; // one grapheme, two UTF-16 code units
+      expect(suspendReasonLength(emoji), 2);
+      expect(suspendReasonLength(' ${emoji * 3} '), 6);
+      expect(validateSuspendReason(emoji * 250), isNull);
+      expect(validateSuspendReason('${emoji * 250}a'), isNotNull);
+      // Thai / Burmese letters are one code unit each.
+      expect(suspendReasonLength('\u0E01\u0E32\u1000'), 3);
+    });
   });
 
   group('PortalOneTimePassword', () {

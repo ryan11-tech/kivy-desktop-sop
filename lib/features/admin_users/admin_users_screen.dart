@@ -6,6 +6,7 @@ import '../../core/api/admin_api_models.dart';
 import '../../core/api/api_exceptions.dart';
 import '../../core/api/staff_api_client.dart';
 import '../../core/staff/staff_session_controller.dart';
+import '../../core/staff/staff_user.dart';
 import '../../theme/app_colors.dart';
 
 class AdminUsersScreen extends StatefulWidget {
@@ -21,6 +22,11 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   List<PortalShop> _shops = const <PortalShop>[];
   bool _loading = true;
   String? _error;
+
+  /// Account id whose new one-time password is being requested. While set,
+  /// the key buttons are disabled and the screen cannot be left, so the
+  /// password dialog always gets shown.
+  String? _issuingFor;
 
   @override
   void initState() {
@@ -79,71 +85,74 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                   staff.status.toLowerCase().contains(query);
             }).toList();
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
+    return PopScope(
+      canPop: _issuingFor == null,
+      child: Scaffold(
         backgroundColor: AppColors.background,
-        title: const Text('User access'),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _shops.isEmpty ? null : () => _openEditor(),
-        icon: const Icon(Icons.person_add_alt_1),
-        label: const Text('Add'),
-      ),
-      body: RefreshIndicator(
-        color: AppColors.primary,
-        backgroundColor: AppColors.surface,
-        onRefresh: _load,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 96),
-          children: [
-            TextField(
-              controller: _searchController,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.search),
-                hintText: 'Search email, role, or status',
-                filled: true,
-                fillColor: AppColors.surface,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-              onChanged: (_) => setState(() {}),
+        appBar: AppBar(
+          backgroundColor: AppColors.background,
+          title: const Text('User access'),
+          actions: [
+            IconButton(
+              tooltip: 'Refresh',
+              onPressed: _loading ? null : _load,
+              icon: const Icon(Icons.refresh),
             ),
-            const SizedBox(height: 12),
-            if (_loading)
-              Padding(
-                padding: const EdgeInsets.only(top: 80),
-                child: Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
-                ),
-              )
-            else if (_error != null)
-              _StateCard(
-                icon: Icons.error_outline,
-                title: 'Could not load staff',
-                message: _error!,
-                actionLabel: 'Retry',
-                onAction: _load,
-              )
-            else if (visible.isEmpty)
-              const _StateCard(
-                icon: Icons.people_outline,
-                title: 'No staff found',
-                message: 'Create a staff account or adjust the search.',
-              )
-            else
-              ...visible.map(_buildStaffCard),
           ],
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: _shops.isEmpty ? null : () => _openEditor(),
+          icon: const Icon(Icons.person_add_alt_1),
+          label: const Text('Add'),
+        ),
+        body: RefreshIndicator(
+          color: AppColors.primary,
+          backgroundColor: AppColors.surface,
+          onRefresh: _load,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 96),
+            children: [
+              TextField(
+                controller: _searchController,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search),
+                  hintText: 'Search email, role, or status',
+                  filled: true,
+                  fillColor: AppColors.surface,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 12),
+              if (_loading)
+                Padding(
+                  padding: const EdgeInsets.only(top: 80),
+                  child: Center(
+                    child: CircularProgressIndicator(color: AppColors.primary),
+                  ),
+                )
+              else if (_error != null)
+                _StateCard(
+                  icon: Icons.error_outline,
+                  title: 'Could not load staff',
+                  message: _error!,
+                  actionLabel: 'Retry',
+                  onAction: _load,
+                )
+              else if (visible.isEmpty)
+                const _StateCard(
+                  icon: Icons.people_outline,
+                  title: 'No staff found',
+                  message: 'Create a staff account or adjust the search.',
+                )
+              else
+                ...visible.map(_buildStaffCard),
+            ],
+          ),
         ),
       ),
     );
@@ -199,8 +208,18 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                 if (!_isSignedInUser(staff))
                   IconButton(
                     tooltip: 'New one-time password',
-                    onPressed: () => _confirmNewOneTimePassword(staff),
-                    icon: const Icon(Icons.key_outlined),
+                    onPressed:
+                        _issuingFor == null
+                            ? () => _confirmNewOneTimePassword(staff)
+                            : null,
+                    icon:
+                        _issuingFor == staff.id
+                            ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                            : const Icon(Icons.key_outlined),
                   ),
                 IconButton(
                   tooltip: 'Edit',
@@ -221,13 +240,20 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   }
 
   Future<void> _openEditor([PortalStaffAccount? account]) async {
+    final caller = _signedInUser;
     final saved = await showDialog<_EditorSaved>(
       context: context,
+      // A pending Save must not be dismissed: a create's one-time password
+      // is only ever shown after the dialog pops with it.
+      barrierDismissible: false,
       builder:
           (_) => _StaffEditorDialog(
             account: account,
             shops: _shops,
             api: context.read<StaffApiClient>(),
+            isOwnAccount: account != null && _isSignedInUser(account),
+            // Unknown caller (no session) keeps the hint.
+            showLiftSuspensionHint: caller?.isAdmin != true,
           ),
     );
     if (saved == null || !mounted) return;
@@ -245,11 +271,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   /// Whether [account] belongs to the signed-in user, who cannot give
   /// themselves a new one-time password. False when no session is available.
   bool _isSignedInUser(PortalStaffAccount account) {
-    final user =
-        Provider.of<StaffSessionController?>(
-          context,
-          listen: false,
-        )?.state.user;
+    final user = _signedInUser;
     if (user == null) return false;
     if (user.staffProfileId.isNotEmpty && user.staffProfileId == account.id) {
       return true;
@@ -257,7 +279,12 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     return user.id.isNotEmpty && user.id == account.userId;
   }
 
+  /// The signed-in staff user, or null when no session is available.
+  StaffUser? get _signedInUser =>
+      Provider.of<StaffSessionController?>(context, listen: false)?.state.user;
+
   Future<void> _confirmNewOneTimePassword(PortalStaffAccount account) async {
+    if (_issuingFor != null) return;
     final api = context.read<StaffApiClient>();
     final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
@@ -286,23 +313,36 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             ],
           ),
     );
-    if (confirmed != true || !mounted) return;
+    // A second tap that queued its own confirm dialog is ignored here.
+    if (confirmed != true || !mounted || _issuingFor != null) return;
 
+    setState(() => _issuingFor = account.id);
+    final PortalOneTimePassword issued;
     try {
-      final issued = await api.issuePortalStaffOneTimePassword(account.id);
-      if (!mounted) return;
-      final reload = _load();
-      await _showOneTimePassword(account.name, issued);
-      await reload;
+      issued = await api.issuePortalStaffOneTimePassword(account.id);
     } on ApiException catch (e) {
+      _endIssuing();
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      return;
     } catch (_) {
+      _endIssuing();
       if (!mounted) return;
       messenger.showSnackBar(
         const SnackBar(content: Text('Could not make a one-time password.')),
       );
+      return;
     }
+    _endIssuing();
+    if (!mounted) return;
+    final reload = _load();
+    await _showOneTimePassword(account.name, issued);
+    await reload;
+  }
+
+  void _endIssuing() {
+    if (!mounted) return;
+    setState(() => _issuingFor = null);
   }
 
   /// Shows a one-time password once. It lives only in this dialog: never
@@ -322,77 +362,82 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       barrierDismissible: false,
       builder:
           (dialogContext) => StatefulBuilder(
+            // Only Done closes it (system back is ignored), so the password
+            // is not lost by accident.
             builder:
-                (dialogContext, setDialogState) => AlertDialog(
-                  backgroundColor: AppColors.surface,
-                  title: const Text(
-                    'One-time password',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  content: SizedBox(
-                    width: 420,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'For $personName',
-                          style: const TextStyle(color: Colors.white70),
-                        ),
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceHigh,
-                            borderRadius: BorderRadius.circular(10),
+                (dialogContext, setDialogState) => PopScope(
+                  canPop: false,
+                  child: AlertDialog(
+                    backgroundColor: AppColors.surface,
+                    title: const Text(
+                      'One-time password',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    content: SizedBox(
+                      width: 420,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'For $personName',
+                            style: const TextStyle(color: Colors.white70),
                           ),
-                          child: SelectableText(
-                            otp.password,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: AppColors.gold,
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 3,
-                              fontFamily: 'monospace',
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceHigh,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: SelectableText(
+                              otp.password,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: AppColors.gold,
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 3,
+                                fontFamily: 'monospace',
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Expires $expiryText',
-                          style: const TextStyle(
-                            color: Colors.white54,
-                            fontSize: 12,
+                          const SizedBox(height: 8),
+                          Text(
+                            'Expires $expiryText',
+                            style: const TextStyle(
+                              color: Colors.white54,
+                              fontSize: 12,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Give this to the person. They sign in at the staff '
-                          'clock page and set their own password. It works '
-                          'once, for 7 days.',
-                          style: TextStyle(color: Colors.white70),
-                        ),
-                      ],
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Give this to the person. They sign in at the staff '
+                            'clock page and set their own password. It works '
+                            'once, for 7 days.',
+                            style: TextStyle(color: Colors.white70),
+                          ),
+                        ],
+                      ),
                     ),
+                    actions: [
+                      TextButton.icon(
+                        onPressed: () async {
+                          await Clipboard.setData(
+                            ClipboardData(text: otp.password),
+                          );
+                          if (!dialogContext.mounted) return;
+                          setDialogState(() => copied = true);
+                        },
+                        icon: Icon(copied ? Icons.check : Icons.copy),
+                        label: Text(copied ? 'Copied' : 'Copy'),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        child: const Text('Done'),
+                      ),
+                    ],
                   ),
-                  actions: [
-                    TextButton.icon(
-                      onPressed: () async {
-                        await Clipboard.setData(
-                          ClipboardData(text: otp.password),
-                        );
-                        if (!dialogContext.mounted) return;
-                        setDialogState(() => copied = true);
-                      },
-                      icon: Icon(copied ? Icons.check : Icons.copy),
-                      label: Text(copied ? 'Copied' : 'Copy'),
-                    ),
-                    FilledButton(
-                      onPressed: () => Navigator.of(dialogContext).pop(),
-                      child: const Text('Done'),
-                    ),
-                  ],
                 ),
           ),
     );
@@ -486,11 +531,19 @@ class _StaffEditorDialog extends StatefulWidget {
     required this.account,
     required this.shops,
     required this.api,
+    required this.isOwnAccount,
+    required this.showLiftSuspensionHint,
   });
 
   final PortalStaffAccount? account;
   final List<PortalShop> shops;
   final StaffApiClient api;
+
+  /// The signed-in user's own account: no Active / Suspended switch.
+  final bool isOwnAccount;
+
+  /// Shows "Only an admin can lift a suspension." (hidden for admins).
+  final bool showLiftSuspensionHint;
 
   @override
   State<_StaffEditorDialog> createState() => _StaffEditorDialogState();
@@ -604,184 +657,208 @@ class _StaffEditorDialogState extends State<_StaffEditorDialog> {
   @override
   Widget build(BuildContext context) {
     final account = widget.account;
-    return AlertDialog(
-      backgroundColor: AppColors.surface,
-      title: Text(
-        _isCreate ? 'Create staff' : 'Edit staff',
-        style: const TextStyle(color: Colors.white),
-      ),
-      content: SizedBox(
-        width: 520,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _DialogField(controller: _nameController, label: 'Name'),
-              const SizedBox(height: 10),
-              _DialogField(
-                controller: _emailController,
-                label: 'Email',
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 12),
-              _Dropdown(
-                label: 'Account',
-                value: _accountRole,
-                values: const ['staff', 'admin'],
-                onChanged: (value) => setState(() => _accountRole = value),
-              ),
-              if (account == null) ...[
+    final reasonLength = suspendReasonLength(_reasonController.text);
+    // Back / Escape cannot close the dialog while Save is pending; the pop
+    // with the result still goes through (Navigator.pop ignores PopScope).
+    return PopScope(
+      canPop: !_saving,
+      child: AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(
+          _isCreate ? 'Create staff' : 'Edit staff',
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _DialogField(controller: _nameController, label: 'Name'),
                 const SizedBox(height: 10),
-                const Text(
-                  'No password to type. After saving you get a one-time '
-                  'password to give them.',
-                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                _DialogField(
+                  controller: _emailController,
+                  label: 'Email',
+                  keyboardType: TextInputType.emailAddress,
                 ),
-              ] else ...[
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    const Text(
-                      'Status',
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                    const SizedBox(width: 8),
-                    _Chip(text: 'NOW ${account.status.toUpperCase()}'),
-                  ],
+                const SizedBox(height: 12),
+                _Dropdown(
+                  label: 'Account',
+                  value: _accountRole,
+                  values: const ['staff', 'admin'],
+                  onChanged: (value) => setState(() => _accountRole = value),
                 ),
-                const SizedBox(height: 8),
-                SegmentedButton<bool>(
-                  segments: const [
-                    ButtonSegment(
-                      value: false,
-                      label: Text('Active'),
-                      icon: Icon(Icons.check_circle_outline),
-                    ),
-                    ButtonSegment(
-                      value: true,
-                      label: Text('Suspended'),
-                      icon: Icon(Icons.block),
-                    ),
-                  ],
-                  selected: {_suspended},
-                  onSelectionChanged:
-                      _saving
-                          ? null
-                          : (selection) =>
-                              setState(() => _suspended = selection.first),
-                ),
-                if (_suspending) ...[
+                if (account == null) ...[
                   const SizedBox(height: 10),
-                  TextField(
-                    controller: _reasonController,
-                    minLines: 2,
-                    maxLines: 4,
-                    maxLength: suspendReasonMaxLength,
-                    style: const TextStyle(color: Colors.white),
-                    // Rebuild so the inline error follows the text once Save
-                    // was tried.
-                    onChanged: (_) => setState(() {}),
-                    decoration: InputDecoration(
-                      labelText: 'Reason',
-                      helperText: 'Signs them out on every device.',
-                      errorText:
-                          _reasonChecked
-                              ? validateSuspendReason(_reasonController.text)
-                              : null,
-                      filled: true,
-                      fillColor: AppColors.surfaceHigh,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                ],
-                if (!_suspended && _wasSuspended) ...[
-                  const SizedBox(height: 8),
                   const Text(
-                    'Only an admin can lift a suspension.',
+                    'No password to type. After saving you get a one-time '
+                    'password to give them.',
                     style: TextStyle(color: Colors.white54, fontSize: 12),
                   ),
+                ] else ...[
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      const Text(
+                        'Status',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                      const SizedBox(width: 8),
+                      _Chip(text: 'NOW ${account.status.toUpperCase()}'),
+                    ],
+                  ),
+                  if (!widget.isOwnAccount) ...[
+                    const SizedBox(height: 8),
+                    SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment(
+                          value: false,
+                          label: Text('Active'),
+                          icon: Icon(Icons.check_circle_outline),
+                        ),
+                        ButtonSegment(
+                          value: true,
+                          label: Text('Suspended'),
+                          icon: Icon(Icons.block),
+                        ),
+                      ],
+                      selected: {_suspended},
+                      onSelectionChanged:
+                          _saving
+                              ? null
+                              : (selection) =>
+                                  setState(() => _suspended = selection.first),
+                    ),
+                    if (_suspending) ...[
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _reasonController,
+                        minLines: 2,
+                        maxLines: 4,
+                        style: const TextStyle(color: Colors.white),
+                        // Rebuild so the inline error follows the text once Save
+                        // was tried.
+                        onChanged: (_) => setState(() {}),
+                        decoration: InputDecoration(
+                          labelText: 'Reason',
+                          helperText: 'Signs them out on every device.',
+                          // Counted like the server (trimmed, UTF-16), not with
+                          // maxLength, which counts graphemes and truncates.
+                          counterText: '$reasonLength/$suspendReasonMaxLength',
+                          counterStyle: TextStyle(
+                            color:
+                                reasonLength > suspendReasonMaxLength
+                                    ? const Color(0xFFFF6B6B)
+                                    : Colors.white54,
+                            fontSize: 12,
+                          ),
+                          errorText:
+                              _reasonChecked
+                                  ? validateSuspendReason(
+                                    _reasonController.text,
+                                  )
+                                  : null,
+                          filled: true,
+                          fillColor: AppColors.surfaceHigh,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                    ],
+                    if (!_suspended &&
+                        _wasSuspended &&
+                        widget.showLiftSuspensionHint) ...[
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Only an admin can lift a suspension.',
+                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                      ),
+                    ],
+                  ],
+                ],
+                if (_accountRole == 'staff') ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Shop memberships',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 6),
+                  ...widget.shops.map((shop) {
+                    final selected = _selectedRoles.containsKey(shop.id);
+                    return CheckboxListTile(
+                      value: selected,
+                      onChanged:
+                          (value) => setState(() {
+                            if (value == true) {
+                              _selectedRoles[shop.id] =
+                                  _selectedRoles[shop.id] ?? 'cashier';
+                            } else {
+                              _selectedRoles.remove(shop.id);
+                            }
+                          }),
+                      title: Text(
+                        shop.name,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      subtitle:
+                          selected
+                              ? DropdownButton<String>(
+                                value: _selectedRoles[shop.id],
+                                dropdownColor: AppColors.surface,
+                                isExpanded: true,
+                                items:
+                                    staffRoleOptions
+                                        .map(
+                                          (role) => DropdownMenuItem(
+                                            value: role,
+                                            child: Text(_label(role)),
+                                          ),
+                                        )
+                                        .toList(),
+                                onChanged:
+                                    (role) => setState(() {
+                                      if (role != null) {
+                                        _selectedRoles[shop.id] = role;
+                                      }
+                                    }),
+                              )
+                              : null,
+                      controlAffinity: ListTileControlAffinity.leading,
+                    );
+                  }),
+                ],
+                if (_error != null) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    _error!,
+                    style: const TextStyle(color: Color(0xFFFF6B6B)),
+                  ),
                 ],
               ],
-              if (_accountRole == 'staff') ...[
-                const SizedBox(height: 8),
-                const Text(
-                  'Shop memberships',
-                  style: TextStyle(color: Colors.white70),
-                ),
-                const SizedBox(height: 6),
-                ...widget.shops.map((shop) {
-                  final selected = _selectedRoles.containsKey(shop.id);
-                  return CheckboxListTile(
-                    value: selected,
-                    onChanged:
-                        (value) => setState(() {
-                          if (value == true) {
-                            _selectedRoles[shop.id] =
-                                _selectedRoles[shop.id] ?? 'cashier';
-                          } else {
-                            _selectedRoles.remove(shop.id);
-                          }
-                        }),
-                    title: Text(
-                      shop.name,
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    subtitle:
-                        selected
-                            ? DropdownButton<String>(
-                              value: _selectedRoles[shop.id],
-                              dropdownColor: AppColors.surface,
-                              isExpanded: true,
-                              items:
-                                  staffRoleOptions
-                                      .map(
-                                        (role) => DropdownMenuItem(
-                                          value: role,
-                                          child: Text(_label(role)),
-                                        ),
-                                      )
-                                      .toList(),
-                              onChanged:
-                                  (role) => setState(() {
-                                    if (role != null) {
-                                      _selectedRoles[shop.id] = role;
-                                    }
-                                  }),
-                            )
-                            : null,
-                    controlAffinity: ListTileControlAffinity.leading,
-                  );
-                }),
-              ],
-              if (_error != null) ...[
-                const SizedBox(height: 10),
-                Text(_error!, style: const TextStyle(color: Color(0xFFFF6B6B))),
-              ],
-            ],
+            ),
           ),
         ),
+        actions: [
+          TextButton(
+            onPressed: _saving ? null : () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: _saving ? null : _save,
+            child:
+                _saving
+                    ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                    : const Text('Save'),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: _saving ? null : () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child:
-              _saving
-                  ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                  : const Text('Save'),
-        ),
-      ],
     );
   }
 }
