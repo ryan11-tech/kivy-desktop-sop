@@ -115,50 +115,125 @@ class PortalStaffMembershipInput {
   }
 }
 
+/// Body of `POST /api/portal/staff` and `PATCH /api/portal/staff/:id`.
+///
+/// Since zin_mae feature 011 the server generates every password (a one-time
+/// password), so this never carries `temporaryPassword` or
+/// `mustChangePassword`. `status` is only sent when it changes; suspending
+/// needs a [statusReason] (see [validateSuspendReason]).
 class PortalStaffMutation {
   const PortalStaffMutation({
     required this.accountRole,
     required this.email,
     required this.name,
-    required this.status,
-    required this.mustChangePassword,
     required this.shopMemberships,
-    this.temporaryPassword,
+    this.status,
+    this.statusReason,
   });
 
   final String accountRole;
   final String email;
   final String name;
-  final String status;
-  final bool mustChangePassword;
-  final String? temporaryPassword;
   final List<PortalStaffMembershipInput> shopMemberships;
+
+  /// `'suspended'` or `'active'`; null leaves the status unchanged.
+  final String? status;
+
+  /// Required by the server when [status] is `'suspended'`.
+  final String? statusReason;
 
   Map<String, Object?> toCreateJson() {
     return <String, Object?>{
       'accountRole': accountRole,
       'email': email,
       'name': name,
-      'temporaryPassword': temporaryPassword,
-      'mustChangePassword': mustChangePassword,
       'shopMemberships': shopMemberships.map((item) => item.toJson()).toList(),
     };
   }
 
   Map<String, Object?> toUpdateJson() {
-    final body = <String, Object?>{
+    final reason = statusReason?.trim();
+    return <String, Object?>{
       'accountRole': accountRole,
       'email': email,
       'name': name,
-      'status': status,
-      'mustChangePassword': mustChangePassword,
+      if (status != null) 'status': status,
+      if (status != null && reason != null && reason.isNotEmpty)
+        'statusReason': reason,
       'shopMemberships': shopMemberships.map((item) => item.toJson()).toList(),
     };
-    if (temporaryPassword != null && temporaryPassword!.isNotEmpty) {
-      body['temporaryPassword'] = temporaryPassword;
-    }
-    return body;
   }
+}
+
+/// Length bounds the server enforces on `statusReason` (trimmed).
+const suspendReasonMinLength = 5;
+const suspendReasonMaxLength = 500;
+
+/// Length of a suspend reason as the server counts it: the trimmed text in
+/// UTF-16 code units (Dart's `String.length`, same as zod's `.max()`), not
+/// user-perceived characters, so an emoji counts as 2.
+int suspendReasonLength(String reason) => reason.trim().length;
+
+/// Returns a user-facing error for a suspend reason, or null when it is valid.
+String? validateSuspendReason(String reason) {
+  final length = suspendReasonLength(reason);
+  if (length < suspendReasonMinLength) {
+    return 'Give a reason of at least $suspendReasonMinLength characters.';
+  }
+  if (length > suspendReasonMaxLength) {
+    return 'Keep the reason to at most $suspendReasonMaxLength characters.';
+  }
+  return null;
+}
+
+/// A server-generated one-time password (`XXXX-XXXX`) and when it expires.
+///
+/// Shown once to the admin and never stored or logged by the app.
+class PortalOneTimePassword {
+  const PortalOneTimePassword({
+    required this.password,
+    required this.expiresAt,
+    required this.expiresAtText,
+  });
+
+  factory PortalOneTimePassword.fromJson(Map<String, Object?> json) {
+    final expiresText = _string(json['expiresAt']);
+    return PortalOneTimePassword(
+      password: _string(json['oneTimePassword']),
+      expiresAt: DateTime.tryParse(expiresText)?.toUtc(),
+      expiresAtText: expiresText,
+    );
+  }
+
+  final String password;
+
+  /// Parsed expiry in UTC; null when the server sent an unparseable value.
+  final DateTime? expiresAt;
+
+  /// The expiry exactly as the server sent it.
+  final String expiresAtText;
+
+  @override
+  String toString() => 'PortalOneTimePassword(expiresAt: $expiresAtText)';
+}
+
+/// Result of `POST /api/portal/staff`: the new account plus its first
+/// one-time password.
+class PortalStaffCreateResult {
+  const PortalStaffCreateResult({
+    required this.staff,
+    required this.oneTimePassword,
+  });
+
+  factory PortalStaffCreateResult.fromJson(Map<String, Object?> json) {
+    return PortalStaffCreateResult(
+      staff: PortalStaffAccount.fromJson(_map(json['staff'])),
+      oneTimePassword: PortalOneTimePassword.fromJson(json),
+    );
+  }
+
+  final PortalStaffAccount staff;
+  final PortalOneTimePassword oneTimePassword;
 }
 
 class PortalCategory {

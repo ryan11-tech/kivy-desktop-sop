@@ -152,7 +152,7 @@ void main() {
     await tester.tap(find.text('Sign out'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Zinme Staff'), findsOneWidget);
+    expect(find.text('ZINMÉ Staff'), findsOneWidget);
   });
 
   testWidgets('settings values survive close and reopen', (tester) async {
