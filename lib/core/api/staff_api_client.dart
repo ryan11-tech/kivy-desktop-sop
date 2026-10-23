@@ -267,7 +267,8 @@ class StaffApiClient {
         .toList();
   }
 
-  Future<PortalStaffAccount> createPortalStaffAccount(
+  /// Creates an account; the server generates its first one-time password.
+  Future<PortalStaffCreateResult> createPortalStaffAccount(
     PortalStaffMutation payload,
   ) async {
     final res = await _send(
@@ -276,7 +277,7 @@ class StaffApiClient {
         data: payload.toCreateJson(),
       ),
     );
-    return PortalStaffAccount.fromJson(_map(res.data?['staff']));
+    return PortalStaffCreateResult.fromJson(_map(res.data));
   }
 
   Future<PortalStaffAccount> updatePortalStaffAccount(
@@ -290,6 +291,19 @@ class StaffApiClient {
       ),
     );
     return PortalStaffAccount.fromJson(_map(res.data?['staff']));
+  }
+
+  /// Issues a new one-time password for someone else's account. The server
+  /// signs that person out on every device.
+  Future<PortalOneTimePassword> issuePortalStaffOneTimePassword(
+    String staffProfileId,
+  ) async {
+    final res = await _send(
+      () => _dio.post<Map<String, Object?>>(
+        '/portal/staff/$staffProfileId/one-time-password',
+      ),
+    );
+    return PortalOneTimePassword.fromJson(_map(res.data));
   }
 
   Future<void> deletePortalStaffAccount(String staffProfileId) async {
